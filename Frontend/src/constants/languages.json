@@ -1,0 +1,72 @@
+{
+  "auto": {
+    "code": "auto",
+    "name": "Auto Detect",
+    "nativeName": "Auto Detect",
+    "flag": "🌐",
+    "description": "Automatically detect language"
+  },
+  "en": {
+    "code": "en",
+    "name": "English",
+    "nativeName": "English",
+    "flag": "🇬🇧",
+    "description": "English"
+  },
+  "hi": {
+    "code": "hi",
+    "name": "Hindi",
+    "nativeName": "हिंदी",
+    "flag": "🇮🇳",
+    "description": "हिंदी"
+  },
+  "pa": {
+    "code": "pa",
+    "name": "Punjabi",
+    "nativeName": "ਪੰਜਾਬੀ",
+    "flag": "🇮🇳",
+    "description": "ਪੰਜਾਬੀ"
+  },
+  "bn": {
+    "code": "bn",
+    "name": "Bengali",
+    "nativeName": "বাংলা",
+    "flag": "🇧🇩",
+    "description": "বাংলা"
+  },
+  "ta": {
+    "code": "ta",
+    "name": "Tamil",
+    "nativeName": "தமிழ்",
+    "flag": "🇮🇳",
+    "description": "தமிழ்"
+  },
+  "te": {
+    "code": "te",
+    "name": "Telugu",
+    "nativeName": "తెలుగు",
+    "flag": "🇮🇳",
+    "description": "తెలుగు"
+  },
+  "mr": {
+    "code": "mr",
+    "name": "Marathi",
+    "nativeName": "मराठी",
+    "flag": "🇮🇳",
+    "description": "मराठी"
+  },
+  "gu": {
+    "code": "gu",
+    "name": "Gujarati",
+    "nativeName": "ગુજરાતી",
+    "flag": "🇮🇳",
+    "description": "ગુજરાતી"
+  },
+  "ur": {
+    "code": "ur",
+    "name": "Urdu",
+    "nativeName": "اردو",
+    "flag": "🇵🇰",
+    "description": "اردو"
+  }
+}

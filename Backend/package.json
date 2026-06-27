@@ -1,0 +1,27 @@
+{
+  "name": "satyascan-backend",
+  "version": "1.0.0",
+  "description": "SatyaScan AI-powered Fake News Verification & Digital Authenticity Backend",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "axios": "^1.7.9",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "exifr": "^7.1.3",
+    "express": "^4.21.1",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^6.45.0",
+    "pdfkit": "^0.15.1",
+    "winston": "^3.17.0"
+  }
+}
