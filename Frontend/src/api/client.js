@@ -1,8 +1,11 @@
 import axios from 'axios';
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 const client = axios.create({
-  baseURL: '/api',
-  timeout: 90000, // 90s — analysis can take up to 60s
+  baseURL: `${API_BASE_URL}/api`,
+  timeout: 90000,
 });
 
 // Attach JWT on every request
