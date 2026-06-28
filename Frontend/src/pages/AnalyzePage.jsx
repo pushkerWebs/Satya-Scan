@@ -19,18 +19,18 @@ function useFakeProgress(active) {
   return step;
 }
 
-// Inline shield SVG with teal
+// Inline shield SVG with warm-sage colors
 function ShieldLogo({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="sgAnalyze" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#14B8A6" />
-          <stop offset="100%" stopColor="#5eead4" />
+          <stop offset="0%" stopColor="#232B1B" />
+          <stop offset="100%" stopColor="#5C6650" />
         </linearGradient>
       </defs>
       <path d="M50 6 L88 22 L88 54 C88 72 70 88 50 95 C30 88 12 72 12 54 L12 22 Z"
-        fill="url(#sgAnalyze)" opacity="0.15" stroke="url(#sgAnalyze)" strokeWidth="2.5" />
+        fill="url(#sgAnalyze)" opacity="0.08" stroke="url(#sgAnalyze)" strokeWidth="2.5" />
       <text x="50" y="66" textAnchor="middle" fontSize="44" fontWeight="800"
         fontFamily="Inter,Arial,sans-serif" fill="url(#sgAnalyze)">S</text>
     </svg>
@@ -86,39 +86,91 @@ export default function AnalyzePage() {
 
   if (loading) return <LoadingState currentStep={progressStep} />;
 
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
-    <div className="min-h-screen bg-[#0B0B0B] text-white">
+    <div className="min-h-screen bg-[#FBE8CE] text-[#232B1B] font-sans">
       {/* ── Top bar ── */}
-      <div className="flex items-center justify-between px-8 py-4 border-b border-[#2A2A2A]">
-        <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/')}>
-          <ShieldLogo size={24} />
-          <span className="font-bold text-base tracking-tight">
-            <span className="text-[#14B8A6]">Satya</span>Scan
-          </span>
-        </div>
-        <div className="flex items-center gap-5 text-sm text-[#D1D5DB]">
-          <LanguageSelector />
-          <button onClick={() => navigate('/history')} className="hover:text-[#14B8A6] transition-colors">
-            {t('nav.history')}
-          </button>
+      <div className="flex flex-col border-b border-[#C3CC9B] px-6 py-4 bg-[#FBE8CE]/85 backdrop-blur-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/')}>
+            <img src="/SatyaScan_logo_transparent.png" alt="SatyaScan Logo" className="h-10 w-auto object-contain" />
+            <span className="font-bold text-base tracking-tight">
+              <span className="text-[#232B1B]">Satya</span><span className="text-[#5C6650] font-medium">Scan</span>
+            </span>
+          </div>
+          <div className="hidden md:flex items-center gap-5 text-sm text-[#5C6650]">
+            <LanguageSelector />
+            <button onClick={() => navigate('/history')} className="hover:text-[#232B1B] transition-colors bg-transparent border-none outline-none cursor-pointer font-semibold">
+              {t('nav.history')}
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              className="hover:text-[#232B1B] transition-colors font-medium text-[#232B1B] border-b border-[#232B1B] pb-0.5 bg-transparent border-none outline-none cursor-pointer"
+            >
+              {t('nav.dashboard')}
+            </button>
+          </div>
+
+          {/* Mobile hamburger button */}
           <button
-            onClick={() => navigate('/')}
-            className="hover:text-[#14B8A6] transition-colors font-medium text-[#14B8A6] border-b border-[#14B8A6] pb-0.5"
+            className="md:hidden text-[#5C6650] hover:text-[#232B1B] p-2 bg-transparent border-none outline-none cursor-pointer"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Toggle menu"
           >
-            {t('nav.dashboard')}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {menuOpen
+                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              }
+            </svg>
           </button>
         </div>
+
+        {/* Mobile menu */}
+        {menuOpen && (
+          <div className="md:hidden mt-4 pt-4 border-t border-[#C3CC9B]/50 space-y-4">
+            <div className="flex items-center justify-between py-1">
+              <span className="text-xs font-bold text-[#5C6650] uppercase tracking-wider">Analysis Language</span>
+              <LanguageSelector />
+            </div>
+            <button
+              onClick={() => {
+                navigate('/history');
+                setMenuOpen(false);
+              }}
+              className="block text-[#5C6650] hover:text-[#232B1B] py-1.5 transition-colors no-underline font-semibold bg-transparent border-none outline-none text-left w-full cursor-pointer"
+            >
+              {t('nav.history')}
+            </button>
+            <button
+              onClick={() => {
+                navigate('/');
+                setMenuOpen(false);
+              }}
+              className="block text-[#232B1B] hover:text-[#232B1B] py-1.5 transition-colors no-underline font-semibold bg-transparent border-none outline-none text-left w-full cursor-pointer"
+            >
+              {t('nav.dashboard')}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Main content ── */}
       <div className="max-w-3xl mx-auto px-6 pt-14 pb-20">
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <h1 className="text-4xl font-extrabold mb-2">
+          <h1 className="text-4xl font-extrabold mb-2 text-[#232B1B]">
             {t('analyze.title')}{' '}
-            <span className="gradient-text">{t('analyze.titleAccent')}</span>
+            <span style={{
+              background: 'linear-gradient(135deg, #768E56 0%, #232B1B 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>
+              {t('analyze.titleAccent')}
+            </span>
           </h1>
-          <p className="text-[#D1D5DB] text-sm mb-10 max-w-xl">
+          <p className="text-[#5C6650] text-sm mb-10 max-w-xl">
             {t('analyze.subtitle')}
           </p>
         </motion.div>
@@ -126,18 +178,18 @@ export default function AnalyzePage() {
         {/* Card */}
         <motion.div
           initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl overflow-hidden"
+          className="bg-[#E4DFB5] border border-[#C3CC9B] rounded-2xl overflow-hidden shadow-xl"
         >
           {/* Tab bar */}
-          <div className="flex border-b border-[#2A2A2A]">
+          <div className="flex border-b border-[#C3CC9B]">
             {TABS.map((tabItem) => (
               <button
                 key={tabItem.key}
                 onClick={() => { setTab(tabItem.key); setError(''); }}
                 className={`flex-1 flex items-center justify-center gap-2 py-4 text-xs font-semibold uppercase tracking-widest transition-all duration-200 border-b-2 -mb-px
                   ${tab === tabItem.key
-                    ? 'border-[#14B8A6] text-[#14B8A6] bg-[#14B8A6]/5'
-                    : 'border-transparent text-[#D1D5DB]/50 hover:text-[#D1D5DB] hover:bg-white/5'}`}
+                    ? 'border-[#232B1B] text-[#232B1B] bg-[#FBE8CE]/50'
+                    : 'border-transparent text-[#5C6650]/50 hover:text-[#232B1B] hover:bg-[#FBE8CE]/20'}`}
               >
                 <span>{tabItem.icon}</span> {tabItem.label}
               </button>
@@ -155,11 +207,11 @@ export default function AnalyzePage() {
                       value={textInput}
                       onChange={(e) => setTextInput(e.target.value.slice(0, MAX_CHARS))}
                       placeholder={t('analyze.textPlaceholder')}
-                      className="w-full bg-[#0B0B0B] border border-[#2A2A2A] text-[#D1D5DB] rounded-xl px-5 py-4 focus:outline-none focus:border-[#14B8A6]/60 resize-none text-sm placeholder-[#D1D5DB]/25 transition-colors"
+                      className="w-full bg-[#FBE8CE] border border-[#C3CC9B] text-[#232B1B] rounded-xl px-5 py-4 focus:outline-none focus:border-[#5C6650] resize-none text-sm placeholder-[#5C6650]/40 transition-colors"
                     />
-                    <div className="absolute bottom-3 right-3 flex items-center gap-3 text-xs text-[#D1D5DB]/30">
+                    <div className="absolute bottom-3 right-3 flex items-center gap-3 text-xs text-[#5C6650]/60">
                       <span className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#14B8A6] animate-pulse" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#232B1B]/70 animate-pulse" />
                         {t('analyze.detectingLanguage')}
                       </span>
                       <span>{textInput.length} / {MAX_CHARS.toLocaleString()}</span>
@@ -171,16 +223,16 @@ export default function AnalyzePage() {
               {tab === 'url' && (
                 <motion.div key="url" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.2 }}>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#D1D5DB]/40">🔗</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5C6650]/50">🔗</span>
                     <input
                       type="url"
                       value={urlInput}
                       onChange={(e) => setUrlInput(e.target.value)}
                       placeholder={t('analyze.urlPlaceholder')}
-                      className="w-full bg-[#0B0B0B] border border-[#2A2A2A] text-[#D1D5DB] rounded-xl pl-10 pr-4 py-4 focus:outline-none focus:border-[#14B8A6]/60 text-sm placeholder-[#D1D5DB]/25 transition-colors"
+                      className="w-full bg-[#FBE8CE] border border-[#C3CC9B] text-[#232B1B] rounded-xl pl-10 pr-4 py-4 focus:outline-none focus:border-[#5C6650] text-sm placeholder-[#5C6650]/40 transition-colors"
                     />
                   </div>
-                  <p className="text-[#D1D5DB]/30 text-xs mt-2 ml-1">{t('analyze.urlHint')}</p>
+                  <p className="text-[#5C6650]/60 text-xs mt-2 ml-1">{t('analyze.urlHint')}</p>
                 </motion.div>
               )}
 
@@ -189,19 +241,19 @@ export default function AnalyzePage() {
                   <div
                     onClick={() => fileRef.current?.click()}
                     className={`w-full border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200
-                      ${imageFile ? 'border-[#14B8A6]/60 bg-[#14B8A6]/5' : 'border-[#2A2A2A] hover:border-[#14B8A6]/40 hover:bg-white/5'}`}
+                      ${imageFile ? 'border-[#9AB17A] bg-[#FBE8CE]/50' : 'border-[#C3CC9B] hover:border-[#9AB17A] hover:bg-[#FBE8CE]/30'}`}
                   >
                     {imageFile ? (
-                      <div className="text-[#14B8A6] text-sm">
+                      <div className="text-[#232B1B] text-sm">
                         <div className="text-3xl mb-2">✅</div>
-                        <p className="font-medium">{imageFile.name}</p>
-                        <p className="text-[#D1D5DB]/40 text-xs mt-1">{(imageFile.size / 1024).toFixed(1)} KB</p>
+                        <p className="font-bold">{imageFile.name}</p>
+                        <p className="text-[#5C6650] text-xs mt-1">{(imageFile.size / 1024).toFixed(1)} KB</p>
                       </div>
                     ) : (
-                      <div>
+                      <div className="text-[#5C6650]">
                         <div className="text-4xl mb-3">🖼️</div>
-                        <p className="text-[#D1D5DB] text-sm font-medium">{t('analyze.imageUpload')}</p>
-                        <p className="text-[#D1D5DB]/30 text-xs mt-1">{t('analyze.imageHint')}</p>
+                        <p className="text-[#232B1B] text-sm font-medium">{t('analyze.imageUpload')}</p>
+                        <p className="text-[#5C6650]/70 text-xs mt-1">{t('analyze.imageHint')}</p>
                       </div>
                     )}
                   </div>
@@ -209,7 +261,7 @@ export default function AnalyzePage() {
                     onChange={(e) => setImageFile(e.target.files[0] || null)} />
                   {imageFile && (
                     <button type="button" onClick={() => setImageFile(null)}
-                      className="text-xs text-red-400 hover:underline mt-2 ml-1">
+                      className="text-xs text-red-700 hover:underline mt-2 ml-1 font-medium">
                       {t('analyze.removeFile')}
                     </button>
                   )}
@@ -220,29 +272,29 @@ export default function AnalyzePage() {
             {/* Error */}
             {error && (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-red-900/20 border border-red-700/50 text-red-300 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+                className="bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3 text-sm flex items-center gap-2 font-medium">
                 <span>⚠️</span> {error}
               </motion.div>
             )}
 
             {/* Footer row */}
             <div className="flex items-center justify-between pt-2">
-              <div className="flex items-center gap-6 text-xs text-[#D1D5DB]/50">
+              <div className="flex items-center gap-6 text-xs text-[#5C6650]/80">
                 <div>
-                  <p className="uppercase tracking-wider mb-0.5">{t('analyze.confidence')}</p>
-                  <p className="text-[#14B8A6] font-bold text-sm">24ms</p>
+                  <p className="uppercase tracking-wider mb-0.5 font-bold text-[10px]">{t('analyze.confidence')}</p>
+                  <p className="text-[#232B1B] font-extrabold text-sm">24ms</p>
                 </div>
                 <div>
-                  <p className="uppercase tracking-wider mb-0.5">{t('analyze.modelVersion')}</p>
-                  <p className="text-[#D1D5DB] font-medium">Satya-Neo v4.2</p>
+                  <p className="uppercase tracking-wider mb-0.5 font-bold text-[10px]">{t('analyze.modelVersion')}</p>
+                  <p className="text-[#232B1B] font-semibold">Satya-Neo v4.2</p>
                 </div>
               </div>
 
               <motion.button
                 type="submit"
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.02, backgroundColor: '#343F29' }}
                 whileTap={{ scale: 0.97 }}
-                className="ss-btn-primary px-8 py-3 text-sm uppercase tracking-wider shadow-lg shadow-[#14B8A6]/20"
+                className="bg-[#232B1B] hover:bg-[#343F29] text-[#FBE8CE] font-bold px-8 py-3 text-sm uppercase tracking-wider rounded-xl transition-all shadow-md shadow-[#232B1B]/10"
               >
                 <span>⚡</span> {t('analyze.analyzeBtn')}
               </motion.button>
@@ -253,10 +305,10 @@ export default function AnalyzePage() {
         {/* Status bar */}
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-          className="flex items-center justify-center gap-6 mt-6 text-xs text-[#D1D5DB]/40"
+          className="flex items-center justify-center gap-6 mt-6 text-xs text-[#5C6650]/60"
         >
           <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#14B8A6]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#9AB17A]" />
             {t('analyze.allOperational')}
           </span>
           <span>{t('analyze.updatedAgo')}</span>
@@ -264,14 +316,14 @@ export default function AnalyzePage() {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-[#2A2A2A] px-8 py-5 flex items-center justify-between">
+      <div className="border-t border-[#C3CC9B] bg-[#E4DFB5] px-8 py-5 flex items-center justify-between">
         <div>
-          <p className="font-bold text-sm"><span className="text-[#14B8A6]">Satya</span>Scan AI</p>
-          <p className="text-[#D1D5DB]/40 text-xs">{t('landing.footer.rights')}</p>
+          <p className="font-bold text-sm text-[#232B1B]">Satya<span className="text-[#5C6650] font-medium">Scan AI</span></p>
+          <p className="text-[#5C6650] text-xs">{t('landing.footer.rights')}</p>
         </div>
-        <div className="flex gap-5 text-xs text-[#D1D5DB]/40">
+        <div className="flex gap-5 text-xs text-[#5C6650]">
           {[t('landing.footer.about'), t('landing.footer.features'), t('landing.footer.github'), t('landing.footer.contact')].map((l) => (
-            <a key={l} href="#" className="hover:text-[#14B8A6] transition-colors">{l}</a>
+            <a key={l} href="#" className="hover:text-[#232B1B] transition-colors">{l}</a>
           ))}
         </div>
       </div>

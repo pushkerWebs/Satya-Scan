@@ -1,5 +1,6 @@
 const Check = require('../models/Check');
 const logger = require('../config/logger');
+const checkToResult = require('../utils/checkToResult');
 
 const ITEMS_PER_PAGE = 15;
 
@@ -52,7 +53,7 @@ async function getHistoryItem(req, res, next) {
       return res.status(404).json({ message: 'Check not found' });
     }
 
-    res.json(check);
+    res.json(checkToResult(check));
   } catch (error) {
     next(error);
   }

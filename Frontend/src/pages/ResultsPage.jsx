@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CircleCheckBig, CircleX, BadgeCheck, TriangleAlert, ShieldQuestion,
@@ -9,39 +9,40 @@ import {
   TrendingUp, Clock, Globe, Award, Zap
 } from 'lucide-react';
 import ShareModal from '../components/ShareModal';
+import { getHistoryItem } from '../api/api';
 import { useTranslation } from '../context/LanguageContext';
 
 // ─── Verdict config ────────────────────────────────────────────────────────────
 
 const VERDICT_CONFIG = {
-  Supported:        { color: '#22c55e', bg: '#22c55e12', border: '#22c55e30', Icon: CircleCheckBig,  label: 'Verified',           microcopy: 'Multiple trusted sources independently support this claim.' },
-  True:             { color: '#22c55e', bg: '#22c55e12', border: '#22c55e30', Icon: CircleCheckBig,  label: 'Verified',           microcopy: 'Multiple trusted sources independently support this claim.' },
-  Contradicted:     { color: '#ef4444', bg: '#ef444412', border: '#ef444430', Icon: CircleX,         label: 'False',              microcopy: 'Reliable evidence from independent sources contradicts this claim.' },
-  False:            { color: '#ef4444', bg: '#ef444412', border: '#ef444430', Icon: CircleX,         label: 'False',              microcopy: 'Reliable evidence from independent sources contradicts this claim.' },
-  Misleading:       { color: '#f97316', bg: '#f9731612', border: '#f9731630', Icon: TriangleAlert,   label: 'Misleading',         microcopy: 'The claim mixes factual information with misleading context or omits key facts.' },
-  PARTIALLY_TRUE:   { color: '#f59e0b', bg: '#f59e0b12', border: '#f59e0b30', Icon: BadgeCheck,      label: 'Partially Verified', microcopy: 'Some parts are supported by evidence, but important context is missing.' },
-  Unverified:       { color: '#6b7280', bg: '#6b728012', border: '#6b728030', Icon: ShieldQuestion,  label: "Couldn't Verify",    microcopy: 'There is not enough reliable evidence from trusted sources to verify this claim.' },
+  Supported:        { color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.12)', border: 'rgba(46, 125, 50, 0.22)', Icon: CircleCheckBig,  label: 'Verified',           microcopy: 'Multiple trusted sources independently support this claim.' },
+  True:             { color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.12)', border: 'rgba(46, 125, 50, 0.22)', Icon: CircleCheckBig,  label: 'Verified',           microcopy: 'Multiple trusted sources independently support this claim.' },
+  Contradicted:     { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX,         label: 'False',              microcopy: 'Reliable evidence from independent sources contradicts this claim.' },
+  False:            { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX,         label: 'False',              microcopy: 'Reliable evidence from independent sources contradicts this claim.' },
+  Misleading:       { color: '#E65100', bg: 'rgba(230, 81, 0, 0.12)', border: 'rgba(230, 81, 0, 0.22)', Icon: TriangleAlert,   label: 'Misleading',         microcopy: 'The claim mixes factual information with misleading context or omits key facts.' },
+  PARTIALLY_TRUE:   { color: '#F57F17', bg: 'rgba(245, 127, 23, 0.12)', border: 'rgba(245, 127, 23, 0.22)', Icon: BadgeCheck,      label: 'Partially Verified', microcopy: 'Some parts are supported by evidence, but important context is missing.' },
+  Unverified:       { color: '#4E5D4C', bg: 'rgba(78, 93, 76, 0.12)', border: 'rgba(78, 93, 76, 0.22)', Icon: ShieldQuestion,  label: "Couldn't Verify",    microcopy: 'There is not enough reliable evidence from trusted sources to verify this claim.' },
   // URL page-type verdicts
-  Informational:    { color: '#14B8A6', bg: '#14B8A612', border: '#14B8A630', Icon: Info,            label: 'Official Information', microcopy: 'This is authoritative information from an official or reference source. It is presented as established information, not evaluated as true or false.' },
-  Opinion:          { color: '#8b5cf6', bg: '#8b5cf612', border: '#8b5cf630', Icon: FileText,        label: 'Opinion Content',    microcopy: 'This page contains opinion or editorial content. Factual statements within have been verified separately where possible.' },
+  Informational:    { color: '#4E5D4C', bg: 'rgba(78, 93, 76, 0.12)', border: 'rgba(78, 93, 76, 0.22)', Icon: Info,            label: 'Official Information', microcopy: 'This is authoritative information from an official or reference source. It is presented as established information, not evaluated as true or false.' },
+  Opinion:          { color: '#5E35B1', bg: 'rgba(94, 53, 177, 0.12)', border: 'rgba(94, 53, 177, 0.22)', Icon: FileText,        label: 'Opinion Content',    microcopy: 'This page contains opinion or editorial content. Factual statements within have been verified separately where possible.' },
   // Image verdicts
-  AUTHENTIC:           { color: '#22c55e', bg: '#22c55e12', border: '#22c55e30', Icon: CircleCheckBig, label: 'Authentic',          microcopy: 'This image appears to be genuine and unmodified.' },
-  LIKELY_AUTHENTIC:    { color: '#5eead4', bg: '#5eead412', border: '#5eead430', Icon: BadgeCheck,     label: 'Likely Authentic',   microcopy: 'This image is probably genuine, with no major signs of manipulation.' },
-  AI_GENERATED:        { color: '#ef4444', bg: '#ef444412', border: '#ef444430', Icon: CircleX,        label: 'AI Generated',       microcopy: 'This image was likely created entirely by artificial intelligence.' },
-  LIKELY_AI_GENERATED: { color: '#f97316', bg: '#f9731612', border: '#f9731630', Icon: TriangleAlert,  label: 'Likely AI Generated',microcopy: 'This image shows strong signs of being AI-generated.' },
-  DEEPFAKE:            { color: '#ef4444', bg: '#ef444412', border: '#ef444430', Icon: CircleX,        label: 'Deepfake Detected',  microcopy: 'This image shows clear signs of deepfake manipulation.' },
-  MANIPULATED:         { color: '#ef4444', bg: '#ef444412', border: '#ef444430', Icon: CircleX,        label: 'Manipulated',        microcopy: 'This image has been digitally altered or edited.' },
-  INCONCLUSIVE:        { color: '#6b7280', bg: '#6b728012', border: '#6b728030', Icon: ShieldQuestion, label: 'Inconclusive',       microcopy: 'The analysis could not reach a definitive conclusion.' },
+  AUTHENTIC:           { color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.12)', border: 'rgba(46, 125, 50, 0.22)', Icon: CircleCheckBig, label: 'Authentic',          microcopy: 'This image appears to be genuine and unmodified.' },
+  LIKELY_AUTHENTIC:    { color: '#00796B', bg: 'rgba(0, 121, 107, 0.12)', border: 'rgba(0, 121, 107, 0.22)', Icon: BadgeCheck,     label: 'Likely Authentic',   microcopy: 'This image is probably genuine, with no major signs of manipulation.' },
+  AI_GENERATED:        { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX,        label: 'AI Generated',       microcopy: 'This image was likely created entirely by artificial intelligence.' },
+  LIKELY_AI_GENERATED: { color: '#E65100', bg: 'rgba(230, 81, 0, 0.12)', border: 'rgba(230, 81, 0, 0.22)', Icon: TriangleAlert,  label: 'Likely AI Generated',microcopy: 'This image shows strong signs of being AI-generated.' },
+  DEEPFAKE:            { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX,        label: 'Deepfake Detected',  microcopy: 'This image shows clear signs of deepfake manipulation.' },
+  MANIPULATED:         { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX,        label: 'Manipulated',        microcopy: 'This image has been digitally altered or edited.' },
+  INCONCLUSIVE:        { color: '#4E5D4C', bg: 'rgba(78, 93, 76, 0.12)', border: 'rgba(78, 93, 76, 0.22)', Icon: ShieldQuestion, label: 'Inconclusive',       microcopy: 'The analysis could not reach a definitive conclusion.' },
 };
 
 function getVerdict(v) {
-  return VERDICT_CONFIG[v] || { color: '#6b7280', bg: '#6b728012', border: '#6b728030', Icon: ShieldQuestion, label: v || 'Unknown', microcopy: 'Result unclear.' };
+  return VERDICT_CONFIG[v] || { color: '#4E5D4C', bg: 'rgba(78, 93, 76, 0.12)', border: 'rgba(78, 93, 76, 0.22)', Icon: ShieldQuestion, label: v || 'Unknown', microcopy: 'Result unclear.' };
 }
 
 function getReliabilityColor(score) {
-  if (score >= 70) return '#22c55e';
-  if (score >= 40) return '#f59e0b';
-  return '#ef4444';
+  if (score >= 70) return '#2E7D32';
+  if (score >= 40) return '#D87D0A';
+  return '#C62828';
 }
 
 function scoreToLabel(score) {
@@ -81,10 +82,10 @@ const TIER2_PUBLISHERS = ['ndtv', 'thehindu', 'indianexpress', 'theguardian', 'n
 
 function publisherReliability(src) {
   const s = (src.source || src.url || '').toLowerCase();
-  if (TIER1_PUBLISHERS.some(k => s.includes(k))) return { label: 'Highly Trusted', color: '#22c55e', tier: 1, reason: 'International wire service or official government source' };
-  if (TIER2_PUBLISHERS.some(k => s.includes(k))) return { label: 'Trusted', color: '#22c55e', tier: 2, reason: 'Established national publication with editorial standards' };
-  if (src.trusted) return { label: 'Verified', color: '#22c55e', tier: 3, reason: 'Source passed reliability checks' };
-  return { label: 'Moderate', color: '#f59e0b', tier: 4, reason: 'Source reliability not independently confirmed' };
+  if (TIER1_PUBLISHERS.some(k => s.includes(k))) return { label: 'Highly Trusted', color: '#2E7D32', tier: 1, reason: 'International wire service or official government source' };
+  if (TIER2_PUBLISHERS.some(k => s.includes(k))) return { label: 'Trusted', color: '#2E7D32', tier: 2, reason: 'Established national publication with editorial standards' };
+  if (src.trusted) return { label: 'Verified', color: '#2E7D32', tier: 3, reason: 'Source passed reliability checks' };
+  return { label: 'Moderate', color: '#D87D0A', tier: 4, reason: 'Source reliability not independently confirmed' };
 }
 
 function getMissingContextText(verdict, reasoning) {
@@ -126,12 +127,9 @@ function getConfidenceExplanation(score, verdict, trustedCount, totalSources) {
 function SatyaScanLogo() {
   return (
     <div className="flex items-center gap-2">
-      <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-        style={{ background: 'linear-gradient(135deg, #14B8A6, #5eead4)' }}>
-        <ShieldCheck size={15} className="text-black" strokeWidth={2.5} />
-      </div>
-      <span className="font-bold text-[15px] tracking-tight text-white">
-        <span style={{ color: '#14B8A6' }}>Satya</span>Scan
+      <img src="/SatyaScan_logo_transparent.png" alt="SatyaScan Logo" className="h-10 w-auto object-contain" />
+      <span className="font-bold text-[15px] tracking-tight text-[#232B1B]">
+        <span className="text-[#232B1B]">Satya</span><span className="text-[#5C6650] font-medium">Scan</span>
       </span>
     </div>
   );
@@ -148,7 +146,7 @@ function ReliabilityRing({ score }) {
   return (
     <div className="relative w-24 h-24 flex-shrink-0">
       <svg className="w-full h-full -rotate-90" viewBox="0 0 88 88">
-        <circle cx="44" cy="44" r={r} fill="none" stroke="#1e2433" strokeWidth="7" />
+        <circle cx="44" cy="44" r={r} fill="none" stroke="#C3CC9B" strokeWidth="7" />
         <motion.circle
           cx="44" cy="44" r={r}
           fill="none" stroke={color} strokeWidth="7"
@@ -160,8 +158,8 @@ function ReliabilityRing({ score }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-black text-white leading-none">{score}</span>
-        <span className="text-[9px] text-white/40 mt-0.5">/ 100</span>
+        <span className="text-2xl font-black text-[#232B1B] leading-none">{score}</span>
+        <span className="text-[9px] text-[#5C6650] mt-0.5">/ 100</span>
       </div>
     </div>
   );
@@ -171,7 +169,7 @@ function ReliabilityRing({ score }) {
 
 function AnimatedBar({ value, color, height = 6 }) {
   return (
-    <div className="w-full rounded-full overflow-hidden" style={{ height, background: '#1a2030' }}>
+    <div className="w-full rounded-full overflow-hidden" style={{ height, background: '#C3CC9B' }}>
       <motion.div
         className="h-full rounded-full"
         style={{ background: color }}
@@ -186,10 +184,10 @@ function AnimatedBar({ value, color, height = 6 }) {
 // ─── Page Type Banner (shown for non-news URL inputs) ─────────────────────────
 
 const PAGE_TYPE_CONFIG = {
-  official:     { Icon: Award,     color: '#14B8A6', bg: 'rgba(20,184,166,0.06)',  border: 'rgba(20,184,166,0.2)',  reportLabel: 'Official Information Report' },
-  reference:    { Icon: Info,      color: '#3b82f6', bg: 'rgba(59,130,246,0.06)',  border: 'rgba(59,130,246,0.2)',  reportLabel: 'Reference Information Report' },
-  opinion:      { Icon: FileText,  color: '#8b5cf6', bg: 'rgba(139,92,246,0.06)', border: 'rgba(139,92,246,0.2)', reportLabel: 'Opinion Content Analysis' },
-  social_media: { Icon: Globe,     color: '#f59e0b', bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.2)', reportLabel: 'Social Media Fact-Check' },
+  official:     { Icon: Award,     color: '#2E7D32', bg: 'rgba(46,125,50,0.06)',  border: 'rgba(46,125,50,0.2)',  reportLabel: 'Official Information Report' },
+  reference:    { Icon: Info,      color: '#1E88E5', bg: 'rgba(30,136,229,0.06)',  border: 'rgba(30,136,229,0.2)',  reportLabel: 'Reference Information Report' },
+  opinion:      { Icon: FileText,  color: '#5E35B1', bg: 'rgba(94,53,177,0.06)', border: 'rgba(94,53,177,0.2)', reportLabel: 'Opinion Content Analysis' },
+  social_media: { Icon: Globe,     color: '#D87D0A', bg: 'rgba(216,125,10,0.06)', border: 'rgba(216,125,10,0.2)', reportLabel: 'Social Media Fact-Check' },
 };
 
 function PageTypeBanner({ pageType, pageTypeLabel, pageTypeDescription }) {
@@ -210,7 +208,7 @@ function PageTypeBanner({ pageType, pageTypeLabel, pageTypeDescription }) {
       </div>
       <div>
         <p className="text-xs font-bold mb-0.5" style={{ color }}>{pageTypeLabel}</p>
-        <p className="text-[11px] text-white/45 leading-relaxed">{pageTypeDescription}</p>
+        <p className="text-[11px] text-[#5C6650] leading-relaxed">{pageTypeDescription}</p>
       </div>
     </motion.div>
   );
@@ -219,13 +217,13 @@ function PageTypeBanner({ pageType, pageTypeLabel, pageTypeDescription }) {
 function SectionHeading({ icon: Icon, children, iconColor, badge }) {
   return (
     <div className="flex items-center justify-between mb-4">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-white/80">
-        <Icon size={15} style={{ color: iconColor || '#14B8A6' }} strokeWidth={2} />
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-[#232B1B]/90">
+        <Icon size={15} style={{ color: iconColor || '#768E56' }} strokeWidth={2} />
         {children}
       </h2>
       {badge && (
         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-          style={{ background: 'rgba(20,184,166,0.1)', color: '#14B8A6', border: '1px solid rgba(20,184,166,0.2)' }}>
+          style={{ background: 'rgba(118,142,86,0.12)', color: '#232B1B', border: '1px solid rgba(118,142,86,0.25)' }}>
           {badge}
         </span>
       )}
@@ -254,23 +252,23 @@ function HowWeVerified() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.15 }}
       className="rounded-2xl overflow-hidden"
-      style={{ background: '#0e1117', border: '1px solid rgba(255,255,255,0.07)' }}
+      style={{ background: '#E4DFB5', border: '1px solid #C3CC9B' }}
     >
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[#FBE8CE]/30 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <Eye size={15} style={{ color: '#14B8A6' }} strokeWidth={2} />
-          <span className="text-sm font-semibold text-white/80">How We Verified This</span>
+          <Eye size={15} style={{ color: '#768E56' }} strokeWidth={2} />
+          <span className="text-sm font-semibold text-[#232B1B]">How We Verified This</span>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full ml-1"
-            style={{ background: 'rgba(20,184,166,0.1)', color: '#14B8A6', border: '1px solid rgba(20,184,166,0.2)' }}>
+            style={{ background: 'rgba(118,142,86,0.12)', color: '#232B1B', border: '1px solid rgba(118,142,86,0.25)' }}>
             Transparent Methodology
           </span>
         </div>
         {open
-          ? <ChevronUp size={14} className="text-white/30" />
-          : <ChevronDown size={14} className="text-white/30" />}
+          ? <ChevronUp size={14} className="text-[#5C6650]" />
+          : <ChevronDown size={14} className="text-[#5C6650]" />}
       </button>
 
       <AnimatePresence initial={false}>
@@ -283,14 +281,14 @@ function HowWeVerified() {
             transition={{ duration: 0.25, ease: 'easeInOut' }}
             style={{ overflow: 'hidden' }}
           >
-            <div className="px-5 pb-5 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <p className="text-xs text-white/35 mb-4 leading-relaxed">
+            <div className="px-5 pb-5 pt-2" style={{ borderTop: '1px solid #C3CC9B' }}>
+              <p className="text-xs text-[#5C6650] mb-4 leading-relaxed">
                 SatyaScan uses a multi-stage evidence pipeline — not a single AI response. Every verdict is built on independently retrieved sources.
               </p>
               <div className="relative">
                 {/* Vertical connector line */}
                 <div className="absolute left-[17px] top-4 bottom-4 w-px"
-                  style={{ background: 'linear-gradient(to bottom, #14B8A640, #14B8A610)' }} />
+                  style={{ background: 'linear-gradient(to bottom, rgba(118,142,86,0.4), rgba(118,142,86,0.1))' }} />
 
                 <div className="space-y-0">
                   {PIPELINE_STEPS.map((step, i) => {
@@ -308,16 +306,16 @@ function HowWeVerified() {
                         {/* Step node */}
                         <div className="w-[34px] h-[34px] rounded-full flex items-center justify-center shrink-0 z-10"
                           style={{
-                            background: isLast ? 'rgba(20,184,166,0.15)' : '#0e1117',
-                            border: `1px solid ${isLast ? '#14B8A6' : 'rgba(20,184,166,0.3)'}`,
+                            background: isLast ? 'rgba(118,142,86,0.15)' : '#E4DFB5',
+                            border: `1px solid ${isLast ? '#768E56' : '#C3CC9B'}`,
                           }}>
-                          <Icon size={13} style={{ color: isLast ? '#14B8A6' : '#14B8A680' }} strokeWidth={2} />
+                          <Icon size={13} style={{ color: isLast ? '#768E56' : '#5C6650' }} strokeWidth={2} />
                         </div>
                         <div className="flex-1 pt-0.5 pb-1">
-                          <p className={`text-xs font-semibold mb-0.5 ${isLast ? 'text-[#14B8A6]' : 'text-white/70'}`}>
+                          <p className={`text-xs font-semibold mb-0.5 ${isLast ? 'text-[#768E56] font-bold' : 'text-[#232B1B]/85'}`}>
                             {step.label}
                           </p>
-                          <p className="text-[11px] text-white/30 leading-relaxed">{step.desc}</p>
+                          <p className="text-[11px] text-[#5C6650] leading-relaxed">{step.desc}</p>
                         </div>
                       </motion.div>
                     );
@@ -336,10 +334,10 @@ function HowWeVerified() {
 
 function PublisherPill({ name, tier }) {
   const colors = {
-    1: { bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.25)', text: '#22c55e' },
-    2: { bg: 'rgba(34,197,94,0.07)', border: 'rgba(34,197,94,0.18)', text: '#4ade80' },
-    3: { bg: 'rgba(20,184,166,0.08)', border: 'rgba(20,184,166,0.2)', text: '#14B8A6' },
-    4: { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', text: '#f59e0b' },
+    1: { bg: 'rgba(46, 125, 50, 0.15)', border: 'rgba(46, 125, 50, 0.25)', text: '#2E7D32' },
+    2: { bg: 'rgba(46, 125, 50, 0.1)', border: 'rgba(46, 125, 50, 0.2)', text: '#2E7D32' },
+    3: { bg: 'rgba(46, 125, 50, 0.08)', border: 'rgba(46, 125, 50, 0.18)', text: '#2E7D32' },
+    4: { bg: 'rgba(216, 125, 10, 0.1)', border: 'rgba(216, 125, 10, 0.2)', text: '#D87D0A' },
   };
   const style = colors[tier] || colors[4];
   return (
@@ -372,19 +370,19 @@ function EvidenceConsensus({ claims }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
       className="rounded-2xl p-5"
-      style={{ background: '#0e1117', border: '1px solid rgba(255,255,255,0.07)' }}
+      style={{ background: '#E4DFB5', border: '1px solid #C3CC9B' }}
     >
       <SectionHeading icon={Layers} badge={`${unique.length} sources`}>Evidence Consensus</SectionHeading>
-      <p className="text-[11px] text-white/30 mb-4 leading-relaxed">
+      <p className="text-[11px] text-[#5C6650] mb-4 leading-relaxed">
         See at a glance whether trusted, independent publications agree or disagree with this claim.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Supporting */}
-        <div className="rounded-xl p-4" style={{ background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.12)' }}>
+        <div className="rounded-xl p-4" style={{ background: 'rgba(46, 125, 50, 0.06)', border: '1px solid rgba(46, 125, 50, 0.15)' }}>
           <div className="flex items-center gap-2 mb-3">
-            <CheckCircle2 size={13} style={{ color: '#22c55e' }} strokeWidth={2.5} />
-            <span className="text-xs font-bold" style={{ color: '#22c55e' }}>
+            <CheckCircle2 size={13} style={{ color: '#2E7D32' }} strokeWidth={2.5} />
+            <span className="text-xs font-bold" style={{ color: '#2E7D32' }}>
               Supporting ({supporting.length})
             </span>
           </div>
@@ -397,15 +395,15 @@ function EvidenceConsensus({ claims }) {
               })}
             </div>
           ) : (
-            <p className="text-[11px] text-white/25 italic">No established trusted publications found</p>
+            <p className="text-[11px] text-[#5C6650]/60 italic">No established trusted publications found</p>
           )}
         </div>
 
         {/* Uncertain / low-trust */}
-        <div className="rounded-xl p-4" style={{ background: 'rgba(107,114,128,0.04)', border: '1px solid rgba(107,114,128,0.12)' }}>
+        <div className="rounded-xl p-4" style={{ background: 'rgba(78, 93, 76, 0.06)', border: '1px solid rgba(78, 93, 76, 0.15)' }}>
           <div className="flex items-center gap-2 mb-3">
-            <ShieldQuestion size={13} className="text-white/30" strokeWidth={2} />
-            <span className="text-xs font-bold text-white/40">
+            <ShieldQuestion size={13} className="text-[#5C6650]" strokeWidth={2} />
+            <span className="text-xs font-bold text-[#5C6650]">
               Unverified Sources ({uncertain.length})
             </span>
           </div>
@@ -418,7 +416,7 @@ function EvidenceConsensus({ claims }) {
               })}
             </div>
           ) : (
-            <p className="text-[11px] text-white/25 italic">All retrieved sources passed trust checks</p>
+            <p className="text-[11px] text-[#5C6650]/60 italic">All retrieved sources passed trust checks</p>
           )}
         </div>
       </div>
@@ -433,8 +431,8 @@ function TrustCard({ score, verdict, trustedCount, totalSources }) {
   const isHigh = score >= 70;
   const isMed = score >= 40 && score < 70;
   const color = getReliabilityColor(score);
-  const bgColor = isHigh ? 'rgba(34,197,94,0.05)' : isMed ? 'rgba(245,158,11,0.05)' : 'rgba(239,68,68,0.05)';
-  const borderColor = isHigh ? 'rgba(34,197,94,0.15)' : isMed ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)';
+  const bgColor = isHigh ? 'rgba(46, 125, 50, 0.08)' : isMed ? 'rgba(216, 125, 10, 0.08)' : 'rgba(198, 40, 40, 0.08)';
+  const borderColor = isHigh ? 'rgba(46, 125, 50, 0.18)' : isMed ? 'rgba(216, 125, 10, 0.18)' : 'rgba(198, 40, 40, 0.18)';
   const TrustIcon = isHigh ? Award : isMed ? BadgeCheck : AlertTriangle;
 
   return (
@@ -452,15 +450,15 @@ function TrustCard({ score, verdict, trustedCount, totalSources }) {
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-bold text-white/90">Can I trust this result?</h3>
+            <h3 className="text-sm font-bold text-[#232B1B]">Can I trust this result?</h3>
           </div>
           <p className="text-base font-black mb-2.5" style={{ color }}>
             {level} Reliability
           </p>
           <ul className="space-y-1.5">
             {reasons.map((r, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs text-white/55 leading-relaxed">
-                <span className="mt-0.5 shrink-0" style={{ color: color, fontSize: 10 }}>
+              <li key={i} className="flex items-start gap-2 text-xs text-[#5C6650] leading-relaxed">
+                <span className="mt-0.5 shrink-0 animate-pulse" style={{ color: color, fontSize: 10 }}>
                   {isHigh ? '✓' : isMed ? '◦' : '✕'}
                 </span>
                 {r}
@@ -485,22 +483,22 @@ function MissingContext({ verdict, reasoning }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.22 }}
       className="rounded-2xl p-5"
-      style={{ background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.18)' }}
+      style={{ background: 'rgba(216, 125, 10, 0.08)', border: '1px solid rgba(216, 125, 10, 0.18)' }}
     >
       <div className="flex items-start gap-3">
         <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-          style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)' }}>
-          <Info size={14} style={{ color: '#f59e0b' }} strokeWidth={2} />
+          style={{ background: 'rgba(216, 125, 10, 0.15)', border: '1px solid rgba(216, 125, 10, 0.25)' }}>
+          <Info size={14} style={{ color: '#D87D0A' }} strokeWidth={2} />
         </div>
         <div className="flex-1">
-          <h3 className="text-sm font-bold text-amber-300 mb-1">Important Context Missing</h3>
-          <p className="text-xs text-white/45 mb-3 leading-relaxed">
+          <h3 className="text-sm font-bold text-[#D87D0A] mb-1">Important Context Missing</h3>
+          <p className="text-xs text-[#5C6650] mb-3 leading-relaxed">
             This claim leaves out important facts that change how it should be understood.
           </p>
           <ul className="space-y-2">
             {contextPoints.slice(0, 3).map((pt, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs text-white/60 leading-relaxed">
-                <span className="mt-0.5 shrink-0 text-amber-400" style={{ fontSize: 10 }}>◈</span>
+              <li key={i} className="flex items-start gap-2 text-xs text-[#5C6650] leading-relaxed">
+                <span className="mt-0.5 shrink-0 text-[#D87D0A]" style={{ fontSize: 10 }}>◈</span>
                 {pt}
               </li>
             ))}
@@ -518,15 +516,15 @@ function ConfidenceExplainer({ score, verdict, trustedCount, totalSources }) {
   const color = getReliabilityColor(score);
 
   return (
-    <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+    <div className="rounded-xl p-4 bg-[#FBE8CE] border border-[#C3CC9B]">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[11px] font-semibold text-white/30 uppercase tracking-widest">Confidence Explained</span>
+        <span className="text-[11px] font-semibold text-[#5C6650] uppercase tracking-widest">Confidence Explained</span>
         <span className="text-sm font-black" style={{ color }}>{level} ({score}%)</span>
       </div>
       <AnimatedBar value={score} color={color} height={5} />
       <div className="mt-3 space-y-1.5">
         {reasons.slice(0, 3).map((r, i) => (
-          <div key={i} className="flex items-start gap-2 text-[11px] text-white/45 leading-relaxed">
+          <div key={i} className="flex items-start gap-2 text-[11px] text-[#5C6650] leading-relaxed">
             <span style={{ color, fontSize: 9, marginTop: 3, flexShrink: 0 }}>▸</span>
             {r}
           </div>
@@ -551,35 +549,35 @@ function SourceCard({ src, index }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.05 * index }}
-      className="group block bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-[#14B8A6]/30 rounded-xl p-4 transition-all duration-200 cursor-pointer no-underline"
+      className="group block bg-[#FBE8CE] hover:bg-[#FBE8CE]/70 border border-[#C3CC9B] hover:border-[#9AB17A] rounded-xl p-4 transition-all duration-200 cursor-pointer no-underline"
       onClick={e => { if (!src.url) e.preventDefault(); }}
     >
       <div className="flex items-start gap-3">
         {/* Publisher icon */}
         <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-          style={{ background: '#1a2030', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <Newspaper size={14} style={{ color: '#14B8A6' }} />
+          style={{ background: '#E4DFB5', border: '1px solid #C3CC9B' }}>
+          <Newspaper size={14} style={{ color: '#768E56' }} />
         </div>
         <div className="flex-1 min-w-0">
           {/* Publisher name + trust badge */}
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-white/70 truncate">{displayName}</span>
+            <span className="text-xs font-semibold text-[#232B1B] truncate">{displayName}</span>
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
               style={{ background: pub.color + '18', color: pub.color }}>
               {pub.label}
             </span>
           </div>
           {/* Why trusted */}
-          <p className="text-[10px] text-white/25 mb-1.5 leading-snug">{pub.reason}</p>
+          <p className="text-[10px] text-[#5C6650] mb-1.5 leading-snug">{pub.reason}</p>
           {/* Article title */}
-          <p className="text-sm font-medium text-white/85 leading-snug line-clamp-2 group-hover:text-white transition-colors">
+          <p className="text-sm font-medium text-[#232B1B] leading-snug line-clamp-2 group-hover:text-[#768E56] transition-colors">
             {src.title || 'Untitled article'}
           </p>
           {/* Open link */}
           {src.url && (
             <div className="flex items-center gap-1 mt-2">
-              <span className="text-[10px] text-white/25 group-hover:text-[#14B8A6] transition-colors font-medium">Open article</span>
-              <ExternalLink size={9} className="text-white/20 group-hover:text-[#14B8A6] transition-colors" />
+              <span className="text-[10px] text-[#5C6650] group-hover:text-[#768E56] transition-colors font-medium">Open article</span>
+              <ExternalLink size={9} className="text-[#5C6650]/50 group-hover:text-[#768E56] transition-colors" />
             </div>
           )}
         </div>
@@ -604,16 +602,16 @@ function ClaimCard({ claim, index }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.05 * index }}
       className="rounded-xl border overflow-hidden"
-      style={{ borderColor: cfg.border, background: '#0e1117' }}
+      style={{ borderColor: cfg.border, background: '#E4DFB5' }}
     >
       {/* Header row */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-start gap-3 p-4 text-left transition-colors hover:bg-white/[0.02]"
+        className="w-full flex items-start gap-3 p-4 text-left transition-colors hover:bg-[#FBE8CE]/40"
       >
         <Icon size={17} style={{ color: cfg.color, marginTop: 2, flexShrink: 0 }} strokeWidth={2} />
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-white/80 leading-relaxed line-clamp-2">
+          <p className="text-sm text-[#232B1B] leading-relaxed line-clamp-2">
             {claim.text}
           </p>
         </div>
@@ -623,8 +621,8 @@ function ClaimCard({ claim, index }) {
             {cfg.label}
           </span>
           {open
-            ? <ChevronUp size={14} className="text-white/30" />
-            : <ChevronDown size={14} className="text-white/30" />}
+            ? <ChevronUp size={14} className="text-[#5C6650]" />
+            : <ChevronDown size={14} className="text-[#5C6650]" />}
         </div>
       </button>
 
@@ -640,7 +638,7 @@ function ClaimCard({ claim, index }) {
             style={{ overflow: 'hidden' }}
           >
             <div className="border-t px-5 pb-5 pt-4 space-y-4"
-              style={{ borderColor: cfg.border + '60', background: '#080c12' }}>
+              style={{ borderColor: cfg.border + '40', background: '#FBE8CE' }}>
 
               {/* Confidence explained */}
               {typeof claim.confidence === 'number' && (
@@ -655,13 +653,13 @@ function ClaimCard({ claim, index }) {
               {/* Why we reached this */}
               {bullets.length > 0 && (
                 <div>
-                  <p className="text-[11px] font-semibold text-white/30 uppercase tracking-widest mb-2.5">
+                  <p className="text-[11px] font-semibold text-[#5C6650] uppercase tracking-widest mb-2.5">
                     Evidence reasoning
                   </p>
                   <ul className="space-y-2">
                     {bullets.map((b, i) => (
-                      <li key={i} className="flex items-start gap-2.5 text-sm text-white/65 leading-relaxed">
-                        <span style={{ color: '#14B8A6', marginTop: 3, flexShrink: 0, fontSize: 11 }}>✓</span>
+                      <li key={i} className="flex items-start gap-2.5 text-sm text-[#232B1B] leading-relaxed">
+                        <span style={{ color: '#768E56', marginTop: 3, flexShrink: 0, fontSize: 11 }}>✓</span>
                         <span>{b}</span>
                       </li>
                     ))}
@@ -672,7 +670,7 @@ function ClaimCard({ claim, index }) {
               {/* Sources inside claim */}
               {claim.sources && claim.sources.length > 0 && (
                 <div>
-                  <p className="text-[11px] font-semibold text-white/30 uppercase tracking-widest mb-2.5">
+                  <p className="text-[11px] font-semibold text-[#5C6650] uppercase tracking-widest mb-2.5">
                     Sources checked ({claim.sources.length})
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -695,16 +693,51 @@ function ClaimCard({ claim, index }) {
 export default function ResultsPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { checkId: paramCheckId } = useParams();
   const [showShare, setShowShare] = useState(false);
+  const [fetchedResult, setFetchedResult] = useState(null);
+  const [fetchLoading, setFetchLoading] = useState(false);
+  const [fetchError, setFetchError] = useState('');
 
-  const result = location.state?.result;
+  const result = location.state?.result || fetchedResult;
+
+  useEffect(() => {
+    if (location.state?.result) return;
+    if (!paramCheckId) return;
+
+    setFetchLoading(true);
+    setFetchError('');
+    getHistoryItem(paramCheckId)
+      .then(({ data }) => setFetchedResult(data))
+      .catch((err) => setFetchError(err.response?.data?.message || 'Failed to load saved report'))
+      .finally(() => setFetchLoading(false));
+  }, [paramCheckId, location.state?.result]);
+
+  if (fetchLoading) {
+    return (
+      <div className="min-h-screen bg-[#FBE8CE] flex flex-col items-center justify-center gap-4 text-center px-4">
+        <div className="w-8 h-8 border-2 border-[#C3CC9B] border-t-[#768E56] rounded-full animate-spin" />
+        <p className="text-[#5C6650] text-sm">Loading saved report…</p>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="min-h-screen bg-[#FBE8CE] flex flex-col items-center justify-center gap-4 text-center px-4">
+        <ShieldQuestion size={40} className="text-[#5C6650]/40" />
+        <p className="text-[#C62828] text-sm font-medium">{fetchError}</p>
+        <Link to="/history" className="bg-[#232B1B] hover:bg-[#343F29] text-[#FBE8CE] font-bold px-5 py-2 rounded-xl text-sm no-underline transition-all">← Back to History</Link>
+      </div>
+    );
+  }
 
   if (!result) {
     return (
-      <div className="min-h-screen bg-[#080c12] flex flex-col items-center justify-center gap-4 text-center px-4">
-        <ShieldQuestion size={40} className="text-white/20" />
-        <p className="text-white/50 text-sm">No results to display. Please run an analysis first.</p>
-        <Link to="/analyze" className="ss-btn-primary text-sm px-5 py-2">← Back to Analyze</Link>
+      <div className="min-h-screen bg-[#FBE8CE] flex flex-col items-center justify-center gap-4 text-center px-4">
+        <ShieldQuestion size={40} className="text-[#5C6650]/40" />
+        <p className="text-[#5C6650] text-sm">No results to display. Please run an analysis first.</p>
+        <Link to="/analyze" className="bg-[#232B1B] hover:bg-[#343F29] text-[#FBE8CE] font-bold px-5 py-2 rounded-xl text-sm no-underline transition-all">← Back to Analyze</Link>
       </div>
     );
   }
@@ -725,8 +758,6 @@ export default function ResultsPage() {
   const isSpecialUrlType = !isImage && pageType && pageType !== 'news';
 
   // Determine overall verdict
-  // pageVerdict (from backend URL classification) takes priority for official/reference/opinion pages.
-  // For all other inputs, derive from trustScore as before.
   const rawVerdict = isImage
     ? imgVerdict
     : (pageVerdict || (trustScore >= 70 ? 'Supported' : trustScore >= 40 ? 'Misleading' : 'Contradicted'));
@@ -766,30 +797,28 @@ export default function ResultsPage() {
   const showMissingContext = ['Misleading', 'PARTIALLY_TRUE'].includes(rawVerdict) && !isImage;
 
   return (
-    <div className="min-h-screen text-white" style={{ background: '#080c12', fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen bg-[#FBE8CE] text-[#232B1B] font-sans">
 
       {/* ── Topbar ──────────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-40 flex items-center justify-between px-5 py-3.5"
-        style={{ background: 'rgba(8,12,18,0.9)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="sticky top-0 z-40 flex items-center justify-between px-5 py-3.5 bg-[#FBE8CE]/90 backdrop-blur-lg border-b border-[#C3CC9B]">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/analyze')}
-            className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors font-medium">
+            className="flex items-center gap-1.5 text-xs text-[#5C6650] hover:text-[#232B1B] transition-colors font-semibold">
             <ArrowLeft size={14} />
             New Analysis
           </button>
-          <span className="text-white/15">|</span>
+          <span className="text-[#C3CC9B]">|</span>
           <SatyaScanLogo />
         </div>
         <div className="flex items-center gap-2">
           {/* Evidence-first tagline */}
-          <span className="hidden sm:flex items-center gap-1.5 text-[10px] font-medium text-white/20">
-            <ShieldCheck size={10} style={{ color: '#14B8A6' }} />
+          <span className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-[#5C6650]/60">
+            <ShieldCheck size={10} style={{ color: '#768E56' }} />
             Independent Verification
           </span>
           {checkId && (
             <button onClick={() => setShowShare(true)}
-              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-              style={{ background: 'rgba(20,184,166,0.12)', color: '#14B8A6', border: '1px solid rgba(20,184,166,0.2)' }}>
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors bg-[#E4DFB5] hover:bg-[#E4DFB5]/70 text-[#232B1B] border border-[#C3CC9B]">
               <Share2 size={12} />
               Share
             </button>
@@ -803,12 +832,11 @@ export default function ResultsPage() {
         {/* API degraded warning */}
         {apiWorking === false && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="flex items-start gap-3 px-4 py-3 rounded-xl text-sm"
-            style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
-            <TriangleAlert size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            className="flex items-start gap-3 px-4 py-3 rounded-xl text-sm bg-[#D87D0A]/10 border border-[#D87D0A]/20">
+            <TriangleAlert size={16} className="text-[#D87D0A] shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-amber-300">Limited analysis — evidence retrieval running in fallback mode</p>
-              <p className="text-amber-400/60 text-xs mt-0.5">Results are based on partial evidence only. Manual verification is recommended.</p>
+              <p className="font-bold text-[#D87D0A]">Limited analysis — evidence retrieval running in fallback mode</p>
+              <p className="text-[#5C6650] text-xs mt-0.5">Results are based on partial evidence only. Manual verification is recommended.</p>
             </div>
           </motion.div>
         )}
@@ -827,8 +855,8 @@ export default function ResultsPage() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="rounded-2xl overflow-hidden"
-          style={{ background: '#0e1117', border: `1px solid ${cfg.border}` }}
+          className="rounded-2xl overflow-hidden bg-[#E4DFB5]"
+          style={{ border: `1px solid ${cfg.border}` }}
         >
           {/* Top status bar */}
           <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, ${cfg.color}80, ${cfg.color}20)` }} />
@@ -839,15 +867,14 @@ export default function ResultsPage() {
               <div className="flex-1">
                 {/* Label above */}
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#5C6650]">
                     {isImage ? 'Image Authenticity Report'
                     : inputType === 'url'
                       ? (PAGE_TYPE_CONFIG[pageType]?.reportLabel || 'URL Verification Report')
                       : 'Fact-Check Report'}
                   </span>
                   {detectedLanguage && detectedLanguage !== 'unknown' && detectedLanguage !== 'en' && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: '#14B8A6' + '15', color: '#14B8A6', border: '1px solid #14B8A6' + '25' }}>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[#768E56]/15 text-[#768E56] border border-[#768E56]/25">
                       {detectedLanguage.toUpperCase()}
                     </span>
                   )}
@@ -866,15 +893,15 @@ export default function ResultsPage() {
                 </div>
 
                 {/* Microcopy */}
-                <p className="text-sm text-white/55 leading-relaxed mb-4 max-w-lg">{cfg.microcopy}</p>
+                <p className="text-sm text-[#5C6650] leading-relaxed mb-4 max-w-lg">{cfg.microcopy}</p>
 
                 {/* Verification Summary */}
                 {firstSummary && (
-                  <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div className="rounded-xl p-4 bg-[#FBE8CE] border border-[#C3CC9B]">
                     <div className="flex items-start gap-2.5">
-                      <ShieldCheck size={13} style={{ color: '#14B8A6', marginTop: 3, flexShrink: 0 }} />
-                      <p className="text-sm text-white/75 leading-relaxed">
-                        <span className="font-semibold text-white/90">Verification Summary — </span>
+                      <ShieldCheck size={13} style={{ color: '#768E56', marginTop: 3, flexShrink: 0 }} />
+                      <p className="text-sm text-[#232B1B] leading-relaxed">
+                        <span className="font-bold text-[#232B1B]">Verification Summary — </span>
                         {firstSummary}
                       </p>
                     </div>
@@ -885,7 +912,7 @@ export default function ResultsPage() {
               {/* Score ring */}
               <div className="flex flex-col items-center gap-1.5 shrink-0">
                 <ReliabilityRing score={displayScore} />
-                <p className="text-[10px] text-white/30 text-center leading-tight">
+                <p className="text-[10px] text-[#5C6650] text-center leading-tight">
                   Overall<br/>Reliability
                 </p>
               </div>
@@ -893,31 +920,27 @@ export default function ResultsPage() {
 
             {/* Claim stat pills */}
             {!isImage && claims.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-[#C3CC9B]">
                 {supported > 0 && (
-                  <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full"
-                    style={{ background: '#22c55e12', color: '#22c55e', border: '1px solid #22c55e25' }}>
+                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#2E7D32]/10 text-[#2E7D32] border border-[#2E7D32]/20">
                     <CircleCheckBig size={11} strokeWidth={2.5} />
                     {supported} evidence-supported
                   </span>
                 )}
                 {contradicted > 0 && (
-                  <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full"
-                    style={{ background: '#ef444412', color: '#ef4444', border: '1px solid #ef444425' }}>
+                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#C62828]/10 text-[#C62828] border border-[#C62828]/20">
                     <CircleX size={11} strokeWidth={2.5} />
                     {contradicted} disputed by sources
                   </span>
                 )}
                 {unverified > 0 && (
-                  <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full"
-                    style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#5C6650]/10 text-[#5C6650] border border-[#5C6650]/20">
                     <ShieldQuestion size={11} strokeWidth={2} />
                     {unverified} insufficient evidence
                   </span>
                 )}
                 {totalSourceCount > 0 && (
-                  <span className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full"
-                    style={{ background: 'rgba(20,184,166,0.06)', color: '#14B8A6', border: '1px solid rgba(20,184,166,0.15)' }}>
+                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#768E56]/10 text-[#768E56] border border-[#768E56]/20">
                     <Globe size={11} strokeWidth={2} />
                     {totalSourceCount} sources checked
                   </span>
@@ -950,8 +973,7 @@ export default function ResultsPage() {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.12 }}
-          className="rounded-2xl p-5"
-          style={{ background: '#0e1117', border: '1px solid rgba(255,255,255,0.07)' }}
+          className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]"
         >
           <SectionHeading icon={TrendingUp}>Evidence Analysis Metrics</SectionHeading>
 
@@ -962,11 +984,11 @@ export default function ResultsPage() {
                 { label: 'Deepfake Probability', value: deepfakeProbability ?? 0, inverse: true },
                 { label: 'Manipulation Probability', value: manipulationProbability ?? 0, inverse: true },
               ].map(({ label, value, inverse }) => {
-                const color = inverse ? (value > 50 ? '#ef4444' : '#22c55e') : getReliabilityColor(value);
+                const color = inverse ? (value > 50 ? '#C62828' : '#2E7D32') : getReliabilityColor(value);
                 return (
                   <div key={label}>
                     <div className="flex items-center justify-between text-xs mb-2">
-                      <span className="text-white/55 font-medium">{label}</span>
+                      <span className="text-[#5C6650] font-bold">{label}</span>
                       <span className="font-bold" style={{ color }}>
                         {value > 70 ? 'High' : value > 40 ? 'Moderate' : 'Low'} ({value}%)
                       </span>
@@ -981,13 +1003,13 @@ export default function ResultsPage() {
               {/* Source credibility bar */}
               <div>
                 <div className="flex items-center justify-between text-xs mb-2">
-                  <span className="text-white/55 font-medium">Source Credibility</span>
+                  <span className="text-[#5C6650] font-bold">Source Credibility</span>
                   <span className="font-bold" style={{ color: getReliabilityColor(sourceCredibility ?? 0) }}>
                     {evidenceStrength} ({Math.round(sourceCredibility ?? 0)}%)
                   </span>
                 </div>
                 <AnimatedBar value={sourceCredibility ?? 0} color={getReliabilityColor(sourceCredibility ?? 0)} />
-                <p className="text-[10px] text-white/25 mt-1">
+                <p className="text-[10px] text-[#5C6650]/80 mt-1">
                   Based on publisher trust tier and editorial standards of retrieved sources
                 </p>
               </div>
@@ -1002,11 +1024,11 @@ export default function ResultsPage() {
 
               {/* Trusted source ratio */}
               {totalSourceCount > 0 && (
-                <div className="flex items-center gap-3 text-xs text-white/40">
-                  <ShieldCheck size={12} style={{ color: '#14B8A6' }} />
+                <div className="flex items-center gap-3 text-xs text-[#5C6650]">
+                  <ShieldCheck size={12} style={{ color: '#768E56' }} />
                   <span>
-                    <span className="font-bold text-white/70">{allTrustedCount}</span> of{' '}
-                    <span className="font-bold text-white/70">{totalSourceCount}</span> sources are from verified publishers
+                    <span className="font-bold text-[#232B1B]">{allTrustedCount}</span> of{' '}
+                    <span className="font-bold text-[#232B1B]">{totalSourceCount}</span> sources are from verified publishers
                   </span>
                 </div>
               )}
@@ -1023,17 +1045,17 @@ export default function ResultsPage() {
             className="grid grid-cols-1 md:grid-cols-2 gap-4"
           >
             {/* Metadata status */}
-            <div className="rounded-2xl p-5" style={{ background: '#0e1117', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]">
               <SectionHeading icon={ShieldCheck}>Metadata Status</SectionHeading>
               {(() => {
                 const intact = metadataIntegrity === 'INTACT';
                 const stripped = metadataIntegrity === 'STRIPPED';
-                const mColor = intact ? '#22c55e' : stripped ? '#f59e0b' : '#ef4444';
+                const mColor = intact ? '#2E7D32' : stripped ? '#D87D0A' : '#C62828';
                 const mLabel = intact ? 'Original & Intact' : stripped ? 'Metadata Removed' : 'Suspicious';
                 return (
                   <>
                     <p className="text-lg font-bold mb-1.5" style={{ color: mColor }}>{mLabel}</p>
-                    <p className="text-xs text-white/45 leading-relaxed">
+                    <p className="text-xs text-[#5C6650] leading-relaxed">
                       {intact
                         ? 'The image retains its original camera data — a strong sign of authenticity.'
                         : stripped
@@ -1047,12 +1069,12 @@ export default function ResultsPage() {
 
             {/* Findings */}
             {findings.length > 0 && (
-              <div className="rounded-2xl p-5" style={{ background: '#0e1117', border: '1px solid rgba(20,184,166,0.15)' }}>
+              <div className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]">
                 <SectionHeading icon={FileText}>What We Found</SectionHeading>
                 <ul className="space-y-2">
                   {findings.slice(0, 5).map((f, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-white/65 leading-relaxed">
-                      <span style={{ color: '#14B8A6', marginTop: 4, fontSize: 10, flexShrink: 0 }}>✓</span>
+                    <li key={i} className="flex items-start gap-2 text-sm text-[#232B1B] leading-relaxed">
+                      <span style={{ color: '#768E56', marginTop: 4, fontSize: 10, flexShrink: 0 }}>✓</span>
                       <span>{f}</span>
                     </li>
                   ))}
@@ -1068,18 +1090,16 @@ export default function ResultsPage() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.18 }}
-            className="rounded-2xl p-5"
-            style={{ background: '#0e1117', border: '1px solid rgba(255,255,255,0.07)' }}
+            className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]"
           >
             <SectionHeading icon={FileText}>Why We Reached This Conclusion</SectionHeading>
-            <p className="text-[11px] text-white/30 mb-3 leading-relaxed">
+            <p className="text-[11px] text-[#5C6650]/60 mb-3 leading-relaxed">
               These conclusions are derived from cross-referencing evidence across independent sources — not from a single AI response.
             </p>
             <ul className="space-y-3">
               {summaryBullets.map((b, i) => (
-                <li key={i} className="flex items-start gap-3 text-sm text-white/65 leading-relaxed">
-                  <span className="mt-0.5 shrink-0 flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold"
-                    style={{ background: '#14B8A6' + '20', color: '#14B8A6' }}>✓</span>
+                <li key={i} className="flex items-start gap-3 text-sm text-[#232B1B] leading-relaxed">
+                  <span className="mt-0.5 shrink-0 flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold bg-[#768E56]/20 text-[#768E56]">✓</span>
                   <span>{b}</span>
                 </li>
               ))}
@@ -1093,11 +1113,10 @@ export default function ResultsPage() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.22 }}
-            className="rounded-2xl p-5"
-            style={{ background: '#0e1117', border: '1px solid rgba(255,255,255,0.07)' }}
+            className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]"
           >
             <SectionHeading icon={FileText}>Analysis Summary</SectionHeading>
-            <p className="text-sm text-white/65 leading-relaxed">{imgSummary}</p>
+            <p className="text-sm text-[#232B1B] leading-relaxed">{imgSummary}</p>
           </motion.div>
         )}
 
@@ -1114,11 +1133,11 @@ export default function ResultsPage() {
             transition={{ delay: 0.22 }}
           >
             <div className="flex items-center justify-between mb-3">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-white/80">
-                <BadgeCheck size={15} style={{ color: '#14B8A6' }} strokeWidth={2} />
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-[#232B1B]/80">
+                <BadgeCheck size={15} style={{ color: '#768E56' }} strokeWidth={2} />
                 Claim-by-Claim Breakdown
               </h2>
-              <span className="text-[11px] text-white/25 font-medium">Tap any claim to see evidence</span>
+              <span className="text-[11px] text-[#5C6650]/60 font-medium">Tap any claim to see evidence</span>
             </div>
             <div className="space-y-2.5">
               {claims.map((claim, i) => <ClaimCard key={i} claim={claim} index={i} />)}
@@ -1126,19 +1145,16 @@ export default function ResultsPage() {
           </motion.div>
         )}
 
-
-
         {/* ── FOOTER NOTE ───────────────────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.35 }}
-          className="rounded-2xl p-5 text-center"
-          style={{ background: 'rgba(20,184,166,0.03)', border: '1px solid rgba(20,184,166,0.08)' }}
+          className="rounded-2xl p-5 text-center bg-[#E4DFB5] border border-[#C3CC9B]"
         >
-          <ShieldCheck size={18} style={{ color: '#14B8A6', margin: '0 auto 10px' }} strokeWidth={1.5} />
-          <p className="text-xs font-semibold text-white/50 mb-1">Evidence-Based Verification</p>
-          <p className="text-[11px] text-white/25 leading-relaxed max-w-sm mx-auto">
+          <ShieldCheck size={18} style={{ color: '#768E56', margin: '0 auto 10px' }} strokeWidth={1.5} />
+          <p className="text-xs font-bold text-[#232B1B] mb-1">Evidence-Based Verification</p>
+          <p className="text-[11px] text-[#5C6650] leading-relaxed max-w-sm mx-auto">
             SatyaScan verifies claims through independent source retrieval and cross-reference analysis.
             You can evaluate every source used in this report.
           </p>
@@ -1147,10 +1163,9 @@ export default function ResultsPage() {
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
-      <div className="mt-6 px-5 py-5 flex items-center justify-between"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <div className="mt-6 px-5 py-5 flex items-center justify-between bg-[#E4DFB5] border-t border-[#C3CC9B]">
         <SatyaScanLogo />
-        <p className="text-[11px] text-white/15">© 2025 SatyaScan — Independent Verification</p>
+        <p className="text-[11px] text-[#5C6650]">© 2025 SatyaScan — Independent Verification</p>
       </div>
 
       {showShare && checkId && (

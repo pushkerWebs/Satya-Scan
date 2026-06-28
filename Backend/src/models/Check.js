@@ -45,8 +45,13 @@ const checkSchema = new mongoose.Schema(
     // ─── Text/URL verification fields ────────────────────────
     trustScore: { type: Number, min: 0, max: 100 },
     aiScore: { type: Number, min: 0, max: 100 },
+    aiReasoning: String,
     sourceScore: { type: Number, min: 0, max: 100 },
     claims: [claimSchema],
+    pageType: String,
+    pageTypeLabel: String,
+    pageTypeDescription: String,
+    pageVerdict: String,
 
     // ─── Image verification fields ───────────────────────────
     imageVerdict: {

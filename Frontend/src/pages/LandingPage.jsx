@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useInView, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { useTranslation, useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 
 // ── Enhanced Animation variants ────────────────────────────────────────────────
 const fadeUp = {
@@ -34,11 +35,6 @@ const springUp = {
     opacity: 1, y: 0,
     transition: { type: 'spring', stiffness: 100, damping: 15, delay: i * 0.12 },
   }),
-};
-
-const stagger = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.08, delayChildren: 0.15 } },
 };
 
 // ── 3D Tilt Card component ─────────────────────────────────────────────────────
@@ -93,12 +89,12 @@ function ShieldLogo({ size = 32 }) {
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
       <defs>
         <linearGradient id="slgLanding" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#14B8A6" />
-          <stop offset="100%" stopColor="#5eead4" />
+          <stop offset="0%" stopColor="#232B1B" />
+          <stop offset="100%" stopColor="#5C6650" />
         </linearGradient>
       </defs>
       <path d="M50 6 L88 22 L88 54 C88 72 70 88 50 95 C30 88 12 72 12 54 L12 22 Z"
-        fill="url(#slgLanding)" opacity="0.15" stroke="url(#slgLanding)" strokeWidth="2.5" />
+        fill="url(#slgLanding)" opacity="0.08" stroke="url(#slgLanding)" strokeWidth="2.5" />
       <text x="50" y="66" textAnchor="middle" fontSize="44" fontWeight="800"
         fontFamily="Inter,Arial,sans-serif" fill="url(#slgLanding)">S</text>
     </svg>
@@ -108,11 +104,11 @@ function ShieldLogo({ size = 32 }) {
 const FEATURE_ICONS = ['🔍', '🤖', '✅', '🌐'];
 const STEP_NUMS = ['01', '02', '03', '04'];
 
-
 export default function LandingPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { uiLang, setUiLang, setSelectedLanguage } = useLanguage();
+  const { isLoggedIn, logout } = useAuth();
   const [searchValue, setSearchValue] = useState('');
   const [navVisible, setNavVisible] = useState(true);
   const [navScrolled, setNavScrolled] = useState(false);
@@ -125,7 +121,6 @@ export default function LandingPage() {
       setNavVisible(y < lastY || y < 60);
       lastY = y;
     };
-    // Use Lenis if available, else fall back to native scroll
     const lenis = window.__lenis;
     if (lenis) {
       lenis.on('scroll', handler);
@@ -158,107 +153,203 @@ export default function LandingPage() {
     { step: STEP_NUMS[3], title: t('landing.steps.s4Title'), desc: t('landing.steps.s4Desc') },
   ];
 
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white overflow-x-hidden">
+    <div className="min-h-screen bg-[#FBE8CE] text-[#232B1B] overflow-x-hidden font-sans">
       {/* ── Navbar ── */}
       <nav
-        className="fixed top-0 left-0 right-0 z-50 px-6 py-3.5 flex items-center justify-between"
+        className="fixed top-0 left-0 right-0 z-50 px-6 py-3.5"
         style={{
           transform: navVisible ? 'translateY(0)' : 'translateY(-110%)',
           transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s ease, backdrop-filter 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease',
-          background: navScrolled
-            ? 'rgba(7, 7, 7, 0.72)'
+          background: navScrolled || menuOpen
+            ? 'rgba(251, 232, 206, 0.85)'
             : 'transparent',
-          backdropFilter: navScrolled ? 'blur(24px) saturate(180%)' : 'none',
-          WebkitBackdropFilter: navScrolled ? 'blur(24px) saturate(180%)' : 'none',
-          borderBottom: navScrolled ? '1px solid rgba(20,184,166,0.12)' : '1px solid transparent',
-          boxShadow: navScrolled ? '0 4px 40px rgba(0,0,0,0.5)' : 'none',
+          backdropFilter: navScrolled || menuOpen ? 'blur(24px) saturate(180%)' : 'none',
+          WebkitBackdropFilter: navScrolled || menuOpen ? 'blur(24px) saturate(180%)' : 'none',
+          borderBottom: navScrolled || menuOpen ? '1px solid #C3CC9B' : '1px solid transparent',
+          boxShadow: navScrolled || menuOpen ? '0 4px 30px rgba(35, 43, 27, 0.03)' : 'none',
           willChange: 'transform',
         }}
       >
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
-          <span className="font-bold text-xl tracking-tight cursor-pointer flex items-center gap-2.5" onClick={() => navigate('/')}>
-            <ShieldLogo size={26} />
-            <span><span className="text-[#14B8A6]">Satya</span>Scan</span>
-          </span>
-        </motion.div>
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
+            <span className="font-bold text-xl tracking-tight cursor-pointer flex items-center gap-2.5" onClick={() => navigate('/')}>
+              <img src="/SatyaScan_logo_transparent.png" alt="SatyaScan Logo" className="h-10 w-auto object-contain" />
+              <span><span className="text-[#232B1B]">Satya</span><span className="text-[#5C6650] font-medium">Scan</span></span>
+            </span>
+          </motion.div>
 
-        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}
-          className="flex items-center gap-3">
+          {/* Desktop Nav */}
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}
+            className="hidden md:flex items-center gap-3">
 
-          {/* Search bar → goes to /analyze */}
-          <form onSubmit={handleSearchSubmit} className="hidden sm:flex items-center">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D1D5DB]/40 text-sm">🔍</span>
-              <input
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-                onFocus={() => navigate('/analyze')}
-                type="text"
-                placeholder={t('landing.searchPlaceholder')}
-                className="pl-9 pr-4 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white placeholder-[#D1D5DB]/30 text-sm w-48 outline-none focus:border-[#14B8A6]/60 focus:bg-white/8 transition-all"
-              />
-            </div>
-          </form>
+            {/* Search bar → goes to /analyze */}
+            <form onSubmit={handleSearchSubmit} className="flex items-center">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5C6650] text-sm">🔍</span>
+                <input
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  onFocus={() => navigate('/analyze')}
+                  type="text"
+                  placeholder={t('landing.searchPlaceholder')}
+                  className="pl-9 pr-4 py-1.5 rounded-lg border border-[#C3CC9B] bg-[#E4DFB5]/50 text-[#232B1B] placeholder-[#5C6650]/60 text-sm w-48 outline-none focus:border-[#5C6650] focus:bg-[#E4DFB5] transition-all"
+                />
+              </div>
+            </form>
 
-          {/* UI Language toggle */}
+            {/* UI Language toggle */}
+            <button
+              onClick={() => {
+                const newLang = uiLang === 'en' ? 'hi' : 'en';
+                setUiLang(newLang);
+                setSelectedLanguage(newLang);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#C3CC9B] text-[#5C6650] hover:border-[#232B1B] hover:text-[#232B1B] transition-all text-xs font-bold"
+            >
+              {uiLang === 'en' ? '🇮🇳 HI' : '🇬🇧 EN'}
+            </button>
+
+            {/* Sign In / Logout */}
+            {isLoggedIn ? (
+              <button
+                onClick={logout}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-red-200/60 text-red-600 hover:text-red-700 hover:border-red-600 transition-all text-sm font-semibold"
+              >
+                Logout
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate('/login')}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-[#C3CC9B] text-[#5C6650] hover:border-[#232B1B] hover:text-[#232B1B] transition-all text-sm font-semibold"
+              >
+                Sign In
+              </button>
+            )}
+
+            {/* Get Started */}
+            <button
+              onClick={goAnalyze}
+              className="bg-[#232B1B] hover:bg-[#343F29] text-[#FBE8CE] font-semibold text-sm px-4 py-1.5 rounded-lg transition-all shadow-sm"
+            >
+              {t('landing.hero.cta')} →
+            </button>
+          </motion.div>
+
+          {/* Mobile hamburger button */}
           <button
-            onClick={() => {
-              const newLang = uiLang === 'en' ? 'hi' : 'en';
-              setUiLang(newLang);
-              setSelectedLanguage(newLang);
-            }}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/10 text-[#D1D5DB] hover:border-[#14B8A6]/60 hover:text-[#14B8A6] transition-all text-xs font-bold"
+            className="md:hidden text-[#5C6650] hover:text-[#232B1B] p-2 bg-transparent border-none outline-none cursor-pointer"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Toggle menu"
           >
-            {uiLang === 'en' ? '🇮🇳 HI' : '🇬🇧 EN'}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {menuOpen
+                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              }
+            </svg>
           </button>
+        </div>
 
-          {/* Sign In */}
-          <button
-            onClick={() => navigate('/login')}
-            className="hidden sm:flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-white/15 text-[#D1D5DB] hover:border-[#14B8A6]/60 hover:text-[#14B8A6] transition-all text-sm font-semibold"
-          >
-            Sign In
-          </button>
-
-          {/* Get Started */}
-          <button
-            onClick={goAnalyze}
-            className="ss-btn-primary text-sm px-4 py-1.5"
-          >
-            {t('landing.hero.cta')} →
-          </button>
-        </motion.div>
+        {/* Mobile menu */}
+        {menuOpen && (
+          <div className="md:hidden mt-3 pb-4 border-t border-[#C3CC9B] pt-4 space-y-3 px-1">
+            <button
+              onClick={() => navigate('/analyze')}
+              className="block text-left w-full text-[#5C6650] hover:text-[#232B1B] py-1.5 transition-colors no-underline font-semibold bg-transparent border-none outline-none cursor-pointer"
+            >
+              {t('landing.hero.cta')}
+            </button>
+            <button
+              onClick={() => {
+                const newLang = uiLang === 'en' ? 'hi' : 'en';
+                setUiLang(newLang);
+                setSelectedLanguage(newLang);
+                setMenuOpen(false);
+              }}
+              className="block text-[#5C6650] hover:text-[#232B1B] py-1.5 text-sm font-bold transition-colors bg-transparent border-none outline-none text-left w-full cursor-pointer"
+            >
+              {uiLang === 'en' ? '🇮🇳 Switch to Hindi' : '🇬🇧 English पर जाएं'}
+            </button>
+            {isLoggedIn ? (
+              <button
+                onClick={() => {
+                  logout();
+                  setMenuOpen(false);
+                }}
+                className="block text-red-700 hover:text-red-800 py-1.5 transition-colors text-sm font-bold bg-transparent border-none outline-none text-left w-full cursor-pointer"
+              >
+                Logout
+              </button>
+            ) : (
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => {
+                    navigate('/login');
+                    setMenuOpen(false);
+                  }}
+                  className="bg-[#E4DFB5] hover:bg-[#E4DFB5]/70 text-[#232B1B] border border-[#C3CC9B] text-xs px-4 py-2 rounded-lg no-underline font-bold cursor-pointer"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => {
+                    navigate('/signup');
+                    setMenuOpen(false);
+                  }}
+                  className="bg-[#232B1B] hover:bg-[#343F29] text-[#FBE8CE] font-bold text-xs px-4 py-2 rounded-lg no-underline cursor-pointer"
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </nav>
 
-      {/* ── Hero ── */}
-      <section className="hero-gradient grid-pattern pt-32 pb-20 px-6 max-w-6xl mx-auto relative">
-        {/* Morphing gradient blob */}
-        <div className="absolute top-10 right-10 w-[400px] h-[400px] morph-blob opacity-20 pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(20,184,166,0.2) 0%, transparent 70%)' }} />
 
-        <div className="flex flex-col lg:flex-row items-center gap-12">
+      {/* ── Hero ── */}
+      <section className="pt-32 pb-20 px-6 max-w-6xl mx-auto relative">
+        {/* Subtle gradient blob */}
+        <div className="absolute top-10 right-10 w-[400px] h-[400px] morph-blob opacity-20 pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(195,204,155,0.3) 0%, transparent 70%)' }} />
+
+        {/* Soft grid pattern overlay */}
+        <div className="absolute inset-0 opacity-30 pointer-events-none animate-pulse"
+          style={{
+            backgroundImage: 'linear-gradient(rgba(195, 204, 155, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(195, 204, 155, 0.3) 1px, transparent 1px)',
+            backgroundSize: '60px 60px'
+          }}
+        />
+
+        <div className="flex flex-col lg:flex-row items-center gap-12 relative z-10">
           <div className="flex-1 text-center lg:text-left">
             <motion.div variants={fadeIn} initial="hidden" animate="visible" custom={0}>
-              <span className="ss-badge mb-6 inline-flex">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#14B8A6] accent-pulse" />
+              <span className="px-3 py-1 rounded-full border border-[#C3CC9B] bg-[#E4DFB5] text-xs font-semibold text-[#5C6650] mb-6 inline-flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#232B1B]/60" />
                 {t('landing.badge')}
               </span>
             </motion.div>
 
             <motion.h1
               variants={fadeUp} initial="hidden" animate="visible" custom={1}
-              className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-tight mb-6"
+              className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-tight mb-6 text-[#232B1B]"
             >
-              {t('landing.hero.title1')}
-              <span className="block gradient-text">
+              {t('landing.hero.title1')}{' '}
+              <span className="block font-black" style={{
+                background: 'linear-gradient(135deg, #768E56 0%, #232B1B 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
+              }}>
                 {t('landing.hero.title2')}
               </span>
             </motion.h1>
 
             <motion.p
               variants={fadeUp} initial="hidden" animate="visible" custom={2}
-              className="text-lg text-[#D1D5DB] mb-8 max-w-lg mx-auto lg:mx-0"
+              className="text-lg text-[#5C6650] mb-8 max-w-lg mx-auto lg:mx-0"
             >
               {t('landing.hero.subtitle')}
             </motion.p>
@@ -268,18 +359,18 @@ export default function LandingPage() {
               className="flex flex-wrap gap-4 justify-center lg:justify-start"
             >
               <motion.button
-                whileHover={{ scale: 1.05, boxShadow: '0 0 40px rgba(20,184,166,0.3)' }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={{ scale: 1.03, backgroundColor: '#343F29' }}
+                whileTap={{ scale: 0.98 }}
                 onClick={goAnalyze}
-                className="shimmer-btn px-8 py-3 text-sm font-bold text-black rounded-xl shadow-lg shadow-[#14B8A6]/20"
+                className="px-8 py-3 text-sm font-bold text-[#FBE8CE] bg-[#232B1B] rounded-xl shadow-lg shadow-[#232B1B]/10 transition-all"
               >
                 {t('landing.hero.cta')} →
               </motion.button>
               <motion.button
-                whileHover={{ scale: 1.05, borderColor: 'rgba(20,184,166,0.6)' }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={{ scale: 1.03, borderColor: '#232B1B', backgroundColor: '#FBE8CE' }}
+                whileTap={{ scale: 0.98 }}
                 onClick={goAnalyze}
-                className="ss-btn-secondary px-8 py-3 text-sm"
+                className="px-8 py-3 text-sm font-semibold text-[#232B1B] border border-[#C3CC9B] bg-[#E4DFB5] rounded-xl transition-all"
               >
                 {t('landing.hero.ctaSecondary')}
               </motion.button>
@@ -290,8 +381,8 @@ export default function LandingPage() {
               className="flex gap-6 mt-8 justify-center lg:justify-start flex-wrap"
             >
               {[t('landing.trust.soc2'), t('landing.trust.encrypted'), t('landing.trust.gdpr')].map((tag) => (
-                <span key={tag} className="text-xs flex items-center gap-1.5 text-[#D1D5DB]">
-                  <span className="text-[#14B8A6]">✓</span> {tag}
+                <span key={tag} className="text-xs flex items-center gap-1.5 text-[#5C6650]">
+                  <span className="text-[#232B1B]">✓</span> {tag}
                 </span>
               ))}
             </motion.div>
@@ -304,7 +395,7 @@ export default function LandingPage() {
               transition={{ delay: 0.4, duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
               className="relative"
             >
-              {/* Floating verified card — figure-8 motion */}
+              {/* Floating verified card */}
               <motion.div
                 animate={{
                   y: [0, -10, 0, 6, 0],
@@ -312,35 +403,35 @@ export default function LandingPage() {
                   rotate: [0, 1, 0, -1, 0],
                 }}
                 transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-                className="absolute -top-4 right-0 flex items-center gap-3 px-4 py-3 rounded-xl border border-[#2A2A2A] bg-[#1A1A1A] shadow-xl z-10"
+                className="absolute -top-4 right-0 flex items-center gap-3 px-4 py-3 rounded-xl border border-[#C3CC9B] bg-[#E4DFB5] shadow-lg z-10"
               >
-                <span className="text-[#14B8A6] text-xl">✅</span>
+                <span className="text-[#232B1B] text-xl">✓</span>
                 <div>
-                  <p className="text-xs text-[#D1D5DB]/60 uppercase tracking-wider">{t('landing.verified')}</p>
-                  <p className="text-sm font-bold text-white">BBC News API</p>
+                  <p className="text-[10px] text-[#5C6650] uppercase tracking-wider">{t('landing.verified')}</p>
+                  <p className="text-sm font-bold text-[#232B1B]">BBC News</p>
                 </div>
               </motion.div>
 
               {/* Main card with 3D tilt */}
-              <TiltCard className="mt-12 rounded-2xl border border-[#2A2A2A] bg-[#1A1A1A] p-6 shadow-2xl">
+              <TiltCard className="mt-12 rounded-2xl border border-[#C3CC9B] bg-[#E4DFB5] p-6 shadow-xl">
                 <div className="flex items-center gap-2 mb-4">
-                  <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity, delay: 0 }} className="w-3 h-3 rounded-full bg-red-500" />
-                  <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity, delay: 0.3 }} className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity, delay: 0.6 }} className="w-3 h-3 rounded-full bg-green-500" />
-                  <span className="ml-auto text-xs text-[#D1D5DB]/50">{t('landing.analysisProgress')}…</span>
+                  <motion.span animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 2, repeat: Infinity, delay: 0 }} className="w-2.5 h-2.5 rounded-full bg-red-400/80" />
+                  <motion.span animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 2, repeat: Infinity, delay: 0.3 }} className="w-2.5 h-2.5 rounded-full bg-yellow-400/80" />
+                  <motion.span animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 2, repeat: Infinity, delay: 0.6 }} className="w-2.5 h-2.5 rounded-full bg-green-400/80" />
+                  <span className="ml-auto text-xs text-[#5C6650]">{t('landing.analysisProgress')}…</span>
                 </div>
                 <div className="space-y-3">
                   {[
-                    { label: t('landing.claimExtraction'), status: '✓', color: 'bg-[#14B8A6]', w: 'w-full' },
-                    { label: t('landing.sourceMatching'), status: '✓', color: 'bg-[#14B8A6]', w: 'w-4/5' },
-                    { label: t('landing.aiDetection'), status: '…', color: 'bg-[#5eead4]', w: 'w-3/5' },
+                    { label: t('landing.claimExtraction'), status: '✓', color: 'bg-[#232B1B]', w: 'w-full' },
+                    { label: t('landing.sourceMatching'), status: '✓', color: 'bg-[#232B1B]', w: 'w-4/5' },
+                    { label: t('landing.aiDetection'), status: '…', color: 'bg-[#5C6650]', w: 'w-3/5' },
                   ].map((item, idx) => (
                     <div key={item.label}>
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-[#D1D5DB]/60">{item.label}</span>
-                        <span className="text-[#14B8A6]">{item.status}</span>
+                        <span className="text-[#5C6650]">{item.label}</span>
+                        <span className="text-[#232B1B] font-bold">{item.status}</span>
                       </div>
-                      <div className="h-1.5 rounded-full bg-[#2A2A2A]">
+                      <div className="h-1.5 rounded-full bg-[#FBE8CE]">
                         <motion.div
                           className={`h-1.5 rounded-full ${item.color}`}
                           initial={{ width: 0 }} animate={{ width: item.w }}
@@ -352,7 +443,7 @@ export default function LandingPage() {
                 </div>
               </TiltCard>
 
-              {/* Floating AI confidence card — figure-8 motion */}
+              {/* Floating AI confidence card */}
               <motion.div
                 animate={{
                   y: [0, 8, 0, -6, 0],
@@ -360,12 +451,12 @@ export default function LandingPage() {
                   rotate: [0, -1.5, 0, 1.5, 0],
                 }}
                 transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
-                className="absolute -bottom-4 left-0 flex items-center gap-3 px-4 py-3 rounded-xl border border-[#2A2A2A] bg-[#1A1A1A] shadow-xl"
+                className="absolute -bottom-4 left-0 flex items-center gap-3 px-4 py-3 rounded-xl border border-[#C3CC9B] bg-[#E4DFB5] shadow-lg"
               >
-                <span className="text-[#5eead4] text-xl">🤖</span>
+                <span className="text-xl">🤖</span>
                 <div>
-                  <p className="text-xs text-[#D1D5DB]/60 uppercase tracking-wider">{t('landing.aiConfidence')}</p>
-                  <p className="text-sm font-bold text-white">{t('landing.genuine')}</p>
+                  <p className="text-[10px] text-[#5C6650] uppercase tracking-wider">{t('landing.aiConfidence')}</p>
+                  <p className="text-sm font-bold text-[#232B1B]">{t('landing.genuine')}</p>
                 </div>
               </motion.div>
             </motion.div>
@@ -373,85 +464,87 @@ export default function LandingPage() {
         </div>
       </section>
 
-  
-
       {/* ── Features ── */}
       <AnimatedSection className="py-24 px-6 max-w-7xl mx-auto">
         {/* Section heading */}
         <motion.div variants={fadeUp} className="text-center mb-16">
-          <span className="ss-badge mb-5 inline-flex">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#14B8A6] accent-pulse" />
-            Intelligence Suite
+          <span className="px-3 py-1 rounded-full border border-[#C3CC9B] bg-[#E4DFB5] text-xs font-semibold text-[#5C6650] mb-5 inline-flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#232B1B]/60" />
+            {t('landing.features.badgeText')}
           </span>
-          <h2 className="text-4xl sm:text-5xl font-extrabold mb-4 leading-tight">
-            Capabilities Built for{' '}
-            <span className="gradient-text">Modern Verification</span>
+          <h2 className="text-4xl sm:text-5xl font-extrabold mb-4 leading-tight text-[#232B1B]">
+            {t('landing.features.title')}{' '}
+            <span style={{
+              background: 'linear-gradient(135deg, #768E56 0%, #232B1B 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>
+              {t('landing.features.titleAccent')}
+            </span>
           </h2>
-          <p className="text-[#D1D5DB]/80 max-w-2xl mx-auto text-lg leading-relaxed">
-            AI tools that detect misinformation, validate sources, and surface truth — in real time.
+          <p className="text-[#5C6650] max-w-2xl mx-auto text-lg leading-relaxed">
+            {t('landing.features.subtitle')}
           </p>
         </motion.div>
 
-        {/* Asymmetric feature grid with 3D tilt */}
+        {/* Asymmetric feature grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
 
           {/* ── Large Left Card (2/3 width) ── */}
           <TiltCard
-            className="lg:col-span-2 relative rounded-2xl border border-[#2A2A2A] overflow-hidden cursor-pointer group"
+            className="lg:col-span-2 relative rounded-2xl border border-[#C3CC9B] overflow-hidden cursor-pointer group"
             style={{
-              background: 'linear-gradient(145deg, rgba(26,26,26,0.95) 0%, rgba(14,14,14,0.98) 100%)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              boxShadow: '0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
+              background: 'linear-gradient(145deg, #E4DFB5 0%, #FBE8CE 100%)',
+              boxShadow: '0 8px 30px rgba(35,43,27,0.02), inset 0 1px 0 rgba(255,255,255,0.4)',
             }}
           >
             <motion.div variants={scaleIn} custom={0} className="h-full">
               {/* Subtle top-left glow */}
               <div className="absolute -top-16 -left-16 w-64 h-64 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"
-                style={{ background: 'radial-gradient(circle, rgba(20,184,166,0.12) 0%, transparent 70%)' }} />
+                style={{ background: 'radial-gradient(circle, rgba(195,204,155,0.2) 0%, transparent 70%)' }} />
 
               <div className="relative z-10 p-8 sm:p-10 flex flex-col h-full">
                 {/* Icon with glow ring */}
                 <div className="mb-6">
                   <motion.div
-                    whileHover={{ rotate: [0, -5, 5, 0], scale: 1.1 }}
+                    whileHover={{ rotate: [0, -5, 5, 0], scale: 1.05 }}
                     transition={{ duration: 0.5 }}
-                    className="feature-icon-glow inline-flex items-center justify-center w-14 h-14 rounded-xl text-2xl"
+                    className="inline-flex items-center justify-center w-14 h-14 rounded-xl text-2xl"
                     style={{
-                      background: 'linear-gradient(135deg, rgba(20,184,166,0.15) 0%, rgba(94,234,212,0.08) 100%)',
-                      border: '1px solid rgba(20,184,166,0.3)',
-                      boxShadow: '0 0 20px rgba(20,184,166,0.2), inset 0 1px 0 rgba(255,255,255,0.06)',
+                      background: 'linear-gradient(135deg, #E4DFB5 0%, #FBE8CE 100%)',
+                      border: '1px solid #C3CC9B',
+                      boxShadow: '0 0 12px rgba(35,43,27,0.01)',
                     }}
                   >
                     🔍
                   </motion.div>
                 </div>
 
-                <h3 className="text-2xl sm:text-3xl font-extrabold text-white mb-3 leading-snug">
-                  Advanced Fact Checking
+                <h3 className="text-2xl sm:text-3xl font-extrabold text-[#232B1B] mb-3 leading-snug">
+                  {t('landing.features.f1Title')}
                 </h3>
-                <p className="text-[#D1D5DB]/70 text-base leading-relaxed max-w-lg">
-                  Real-time verification using trusted databases, research publications, and official sources — surfacing truth with citation-backed confidence scores.
+                <p className="text-[#5C6650] text-base leading-relaxed max-w-lg">
+                  {t('landing.features.f1Desc')}
                 </p>
 
                 {/* Illustrative banner */}
                 <div className="mt-8 flex-1 rounded-xl overflow-hidden relative min-h-[160px]"
                   style={{
-                    background: 'linear-gradient(135deg, rgba(20,184,166,0.07) 0%, rgba(11,11,11,0.9) 80%)',
-                    border: '1px solid rgba(20,184,166,0.12)',
+                    background: 'linear-gradient(135deg, rgba(195,204,155,0.15) 0%, #E4DFB5 80%)',
+                    border: '1px solid #C3CC9B',
                   }}
                 >
                   {/* Animated scan lines */}
                   <div className="absolute inset-0 flex flex-col justify-center px-6 py-4 gap-3">
                     {[
-                      { label: 'WHO Official Report', match: 'High', w: 'w-full', color: '#14B8A6' },
-                      { label: 'Reuters Fact-Check', match: 'High', w: 'w-5/6', color: '#5eead4' },
-                      { label: 'PubMed Research', match: 'Medium', w: 'w-4/5', color: '#14B8A6' },
-                      { label: 'AP News Verification', match: 'Medium', w: 'w-3/4', color: '#5eead4' },
+                      { label: t('landing.features.f1Banner1'), match: t('landing.features.high'), w: 'w-full', color: '#232B1B' },
+                      { label: t('landing.features.f1Banner2'), match: t('landing.features.high'), w: 'w-5/6', color: '#5C6650' },
+                      { label: t('landing.features.f1Banner3'), match: t('landing.features.medium'), w: 'w-4/5', color: '#7E8C6E' },
+                      { label: t('landing.features.f1Banner4'), match: t('landing.features.medium'), w: 'w-3/4', color: '#9FAB8B' },
                     ].map((item, idx) => (
                       <div key={idx} className="flex items-center gap-3">
-                        <span className="text-[10px] text-[#D1D5DB]/40 w-36 shrink-0 truncate">{item.label}</span>
-                        <div className="flex-1 h-1.5 rounded-full bg-[#2A2A2A] overflow-hidden">
+                        <span className="text-[10px] text-[#5C6650] w-36 shrink-0 truncate">{item.label}</span>
+                        <div className="flex-1 h-1.5 rounded-full bg-[#FBE8CE] overflow-hidden">
                           <motion.div
                             className="h-1.5 rounded-full"
                             style={{ backgroundColor: item.color }}
@@ -466,9 +559,9 @@ export default function LandingPage() {
                   </div>
                   {/* Corner badge */}
                   <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold"
-                    style={{ background: 'rgba(20,184,166,0.12)', border: '1px solid rgba(20,184,166,0.25)', color: '#14B8A6' }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#14B8A6] accent-pulse" />
-                    LIVE
+                    style={{ background: '#E4DFB5', border: '1px solid #C3CC9B', color: '#232B1B' }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#232B1B]" />
+                    {t('landing.features.live')}
                   </div>
                 </div>
               </div>
@@ -478,46 +571,43 @@ export default function LandingPage() {
           {/* ── Right Column: Two stacked cards ── */}
           <div className="flex flex-col gap-5">
 
-            {/* Card 2 — AI Content Detection */}
+            {/* Card 2 ── AI Content Detection */}
             <TiltCard
-              className="flex-1 relative rounded-2xl border border-[#2A2A2A] overflow-hidden cursor-pointer group"
+              className="flex-1 relative rounded-2xl border border-[#C3CC9B] overflow-hidden cursor-pointer group"
               style={{
-                background: 'linear-gradient(145deg, rgba(26,26,26,0.95) 0%, rgba(14,14,14,0.98) 100%)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                boxShadow: '0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
+                background: 'linear-gradient(145deg, #E4DFB5 0%, #FBE8CE 100%)',
+                boxShadow: '0 8px 30px rgba(35,43,27,0.02), inset 0 1px 0 rgba(255,255,255,0.4)',
               }}
             >
               <motion.div variants={scaleIn} custom={1} className="h-full">
                 <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"
-                  style={{ background: 'radial-gradient(circle, rgba(20,184,166,0.1) 0%, transparent 70%)' }} />
+                  style={{ background: 'radial-gradient(circle, rgba(195,204,155,0.15) 0%, transparent 70%)' }} />
                 <div className="relative z-10 p-7">
                   <motion.div
-                    whileHover={{ rotate: [0, -5, 5, 0], scale: 1.1 }}
+                    whileHover={{ rotate: [0, -5, 5, 0], scale: 1.05 }}
                     transition={{ duration: 0.5 }}
                     className="mb-5 inline-flex items-center justify-center w-11 h-11 rounded-xl text-xl"
                     style={{
-                      background: 'linear-gradient(135deg, rgba(20,184,166,0.15) 0%, rgba(94,234,212,0.08) 100%)',
-                      border: '1px solid rgba(20,184,166,0.3)',
-                      boxShadow: '0 0 16px rgba(20,184,166,0.18)',
+                      background: 'linear-gradient(135deg, #E4DFB5 0%, #FBE8CE 100%)',
+                      border: '1px solid #C3CC9B',
+                      boxShadow: '0 0 16px rgba(35,43,27,0.01)',
                     }}
                   >
                     🤖
                   </motion.div>
-                  <h3 className="text-lg font-bold text-white mb-2 leading-snug">
-                    AI Content Detection
+                  <h3 className="text-lg font-bold text-[#232B1B] mb-2 leading-snug">
+                    {t('landing.features.f2Title')}
                   </h3>
-                  <p className="text-sm text-[#D1D5DB]/65 leading-relaxed">
-                    Detect AI-generated text, manipulated content, synthetic media, and misinformation patterns with multi-signal forensic analysis.
+                  <p className="text-sm text-[#5C6650] leading-relaxed">
+                    {t('landing.features.f2Desc')}
                   </p>
                   {/* Mini stat pills */}
                   <div className="mt-5 flex flex-wrap gap-2">
-                    {['GPT Detection', 'Deepfake', 'Synthetic'].map((tag) => (
+                    {[t('landing.features.f2Tag1'), t('landing.features.f2Tag2'), t('landing.features.f2Tag3')].map((tag) => (
                       <motion.span
                         key={tag}
-                        whileHover={{ scale: 1.08, borderColor: 'rgba(20,184,166,0.5)' }}
-                        className="px-2.5 py-1 rounded-full text-[10px] font-semibold cursor-default"
-                        style={{ background: 'rgba(20,184,166,0.08)', border: '1px solid rgba(20,184,166,0.2)', color: '#5eead4' }}>
+                        whileHover={{ scale: 1.05 }}
+                        className="px-2.5 py-1 rounded-full text-[10px] font-semibold cursor-default border border-[#C3CC9B] bg-[#FBE8CE] text-[#5C6650]">
                         {tag}
                       </motion.span>
                     ))}
@@ -526,48 +616,46 @@ export default function LandingPage() {
               </motion.div>
             </TiltCard>
 
-            {/* Card 3 — Source Credibility Analysis */}
+            {/* Card 3 ── Source Credibility Analysis */}
             <TiltCard
-              className="flex-1 relative rounded-2xl border border-[#2A2A2A] overflow-hidden cursor-pointer group"
+              className="flex-1 relative rounded-2xl border border-[#C3CC9B] overflow-hidden cursor-pointer group"
               style={{
-                background: 'linear-gradient(145deg, rgba(26,26,26,0.95) 0%, rgba(14,14,14,0.98) 100%)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                boxShadow: '0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
+                background: 'linear-gradient(145deg, #E4DFB5 0%, #FBE8CE 100%)',
+                boxShadow: '0 8px 30px rgba(35,43,27,0.02), inset 0 1px 0 rgba(255,255,255,0.4)',
               }}
             >
               <motion.div variants={scaleIn} custom={2} className="h-full">
                 <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"
-                  style={{ background: 'radial-gradient(circle, rgba(94,234,212,0.1) 0%, transparent 70%)' }} />
+                  style={{ background: 'radial-gradient(circle, rgba(195,204,155,0.15) 0%, transparent 70%)' }} />
                 <div className="relative z-10 p-7">
                   <motion.div
-                    whileHover={{ rotate: [0, -5, 5, 0], scale: 1.1 }}
+                    whileHover={{ rotate: [0, -5, 5, 0], scale: 1.05 }}
                     transition={{ duration: 0.5 }}
                     className="mb-5 inline-flex items-center justify-center w-11 h-11 rounded-xl text-xl"
                     style={{
-                      background: 'linear-gradient(135deg, rgba(20,184,166,0.15) 0%, rgba(94,234,212,0.08) 100%)',
-                      border: '1px solid rgba(20,184,166,0.3)',
-                      boxShadow: '0 0 16px rgba(20,184,166,0.18)',
+                      background: 'linear-gradient(135deg, #E4DFB5 0%, #FBE8CE 100%)',
+                      border: '1px solid #C3CC9B',
+                      boxShadow: '0 0 16px rgba(35,43,27,0.01)',
                     }}
                   >
                     ✅
                   </motion.div>
-                  <h3 className="text-lg font-bold text-white mb-2 leading-snug">
-                    Source Credibility Analysis
+                  <h3 className="text-lg font-bold text-[#232B1B] mb-2 leading-snug">
+                    {t('landing.features.f3Title')}
                   </h3>
-                  <p className="text-sm text-[#D1D5DB]/65 leading-relaxed">
-                    Evaluate source trustworthiness using reputation scores, historical accuracy, citations, and reliability metrics from verified outlets.
+                  <p className="text-sm text-[#5C6650] leading-relaxed">
+                    {t('landing.features.f3Desc')}
                   </p>
                   {/* Credibility meter */}
                   <div className="mt-5">
-                    <div className="flex justify-between text-[10px] text-[#D1D5DB]/40 mb-1.5">
-                      <span>Credibility Score</span>
-                      <span className="text-[#14B8A6] font-bold">High</span>
+                    <div className="flex justify-between text-[10px] text-[#5C6650] mb-1.5">
+                      <span>{t('landing.features.f3Meter')}</span>
+                      <span className="text-[#232B1B] font-bold">{t('landing.features.f3High')}</span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-[#2A2A2A] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-[#FBE8CE] overflow-hidden">
                       <motion.div
                         className="h-1.5 rounded-full"
-                        style={{ background: 'linear-gradient(90deg, #14B8A6, #5eead4)' }}
+                        style={{ background: 'linear-gradient(90deg, #232B1B, #5C6650)' }}
                         initial={{ width: 0 }}
                         animate={{ width: '94%' }}
                         transition={{ duration: 1.5, delay: 0.8, ease: [0.4, 0, 0.2, 1] }}
@@ -585,8 +673,8 @@ export default function LandingPage() {
       {/* ── How It Works ── */}
       <AnimatedSection className="py-20 px-6 max-w-5xl mx-auto">
         <motion.div variants={fadeUp} className="text-center mb-12">
-          <h2 className="text-4xl font-extrabold mb-3">{t('landing.steps.title')}</h2>
-          <p className="text-[#D1D5DB]">{t('landing.steps.subtitle')}</p>
+          <h2 className="text-4xl font-extrabold mb-3 text-[#232B1B]">{t('landing.steps.title')}</h2>
+          <p className="text-[#5C6650]">{t('landing.steps.subtitle')}</p>
         </motion.div>
 
         {/* Steps with connected timeline */}
@@ -599,7 +687,7 @@ export default function LandingPage() {
               whileInView={{ scaleX: 1 }}
               viewport={{ once: true }}
               transition={{ duration: 1.2, ease: [0.4, 0, 0.2, 1] }}
-              style={{ transformOrigin: 'left', background: 'linear-gradient(90deg, transparent 0%, rgba(20,184,166,0.3) 10%, rgba(20,184,166,0.3) 90%, transparent 100%)' }}
+              style={{ transformOrigin: 'left', background: 'linear-gradient(90deg, transparent 0%, #C3CC9B 10%, #C3CC9B 90%, transparent 100%)' }}
             />
           </div>
 
@@ -607,30 +695,32 @@ export default function LandingPage() {
             {STEPS.map((s, i) => (
               <motion.div
                 key={s.step} variants={springUp} custom={i}
-                whileHover={{ y: -8, boxShadow: '0 12px 40px rgba(20,184,166,0.12)' }}
-                className="ss-card relative bg-[#1A1A1A] backdrop-blur-sm"
+                whileHover={{ y: -6, boxShadow: '0 12px 30px rgba(35,43,27,0.04)' }}
+                className="relative bg-[#E4DFB5] border border-[#C3CC9B] rounded-2xl p-6 shadow-sm transition-all duration-300"
               >
-                {/* Step number with glow */}
+                {/* Step number with watermark */}
                 <motion.p
                   className="text-4xl font-black mb-3"
-                  style={{ color: 'rgba(20,184,166,0.2)' }}
-                  whileHover={{ color: 'rgba(20,184,166,0.4)' }}
+                  style={{ color: 'rgba(35, 43, 27, 0.45)' }}
+                  whileHover={{ color: 'rgba(35, 43, 27, 0.7)' }}
                 >
                   {s.step}
                 </motion.p>
-                <h3 className="font-bold text-base mb-1 text-white">{s.title}</h3>
-                <p className="text-sm text-[#D1D5DB]">{s.desc}</p>
+                <h3 className="font-bold text-base mb-1 text-[#232B1B]">{s.title}</h3>
+                <p className="text-sm text-[#5C6650]">{s.desc}</p>
 
                 {/* Arrow connector (desktop) */}
                 {i < STEPS.length - 1 && (
                   <motion.div
-                    initial={{ opacity: 0, x: -5 }}
-                    whileInView={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 + i * 0.15 }}
-                    className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 text-[#14B8A6]/50 text-xl z-10"
+                    className="hidden lg:flex absolute right-0 translate-x-1/2 top-1/2 -translate-y-1/2 items-center justify-center z-20 w-8 h-8 rounded-full bg-[#FBE8CE] border border-[#C3CC9B] shadow-sm"
                   >
-                    →
+                    <svg className="w-4 h-4 text-[#9AB17A]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
                   </motion.div>
                 )}
               </motion.div>
@@ -645,18 +735,13 @@ export default function LandingPage() {
           variants={scaleIn}
           className="max-w-2xl mx-auto text-center relative overflow-hidden rounded-3xl"
         >
-          {/* Animated glow ring behind */}
-          <div className="absolute inset-0 glass-card-glow rounded-3xl" />
-          
-          <div className="relative bg-[#1A1A1A] border border-[#14B8A6]/20 rounded-3xl p-12 shadow-2xl"
-            style={{ boxShadow: '0 0 60px rgba(20,184,166,0.08)' }}
-          >
+          <div className="relative bg-[#E4DFB5] border border-[#C3CC9B] rounded-3xl p-12 shadow-xl">
             <motion.h2
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6 }}
-              className="text-4xl font-extrabold text-white mb-4"
+              className="text-4xl font-extrabold text-[#232B1B] mb-4"
             >
               {t('landing.cta.title')}
             </motion.h2>
@@ -665,24 +750,24 @@ export default function LandingPage() {
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
               transition={{ delay: 0.2, duration: 0.6 }}
-              className="text-[#D1D5DB] mb-8"
+              className="text-[#5C6650] mb-8"
             >
               {t('landing.cta.subtitle')}
             </motion.p>
             <div className="flex gap-4 justify-center flex-wrap">
               <motion.button
-                whileHover={{ scale: 1.05, boxShadow: '0 0 50px rgba(20,184,166,0.35)' }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={{ scale: 1.03, backgroundColor: '#343F29' }}
+                whileTap={{ scale: 0.98 }}
                 onClick={goAnalyze}
-                className="shimmer-btn px-8 py-3 font-bold text-black rounded-xl shadow-lg shadow-[#14B8A6]/20"
+                className="px-8 py-3 font-bold text-[#FBE8CE] bg-[#232B1B] rounded-xl shadow-lg shadow-[#232B1B]/10 transition-all"
               >
                 {t('landing.cta.primary')}
               </motion.button>
               <motion.button
-                whileHover={{ scale: 1.05, borderColor: 'rgba(20,184,166,0.6)' }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={{ scale: 1.03, borderColor: '#232B1B', backgroundColor: '#FBE8CE' }}
+                whileTap={{ scale: 0.98 }}
                 onClick={goAnalyze}
-                className="ss-btn-secondary px-8 py-3"
+                className="px-8 py-3 font-semibold text-[#232B1B] border border-[#C3CC9B] bg-[#E4DFB5] rounded-xl transition-all"
               >
                 {t('landing.cta.secondary')}
               </motion.button>
@@ -692,22 +777,22 @@ export default function LandingPage() {
       </AnimatedSection>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-[#2A2A2A] px-6 py-8">
+      <footer className="border-t border-[#C3CC9B] bg-[#E4DFB5] px-6 py-8">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <p className="font-bold text-lg">
-              <span className="text-[#14B8A6]">Satya</span>Scan
+            <p className="font-bold text-lg text-[#232B1B]">
+              Satya<span className="text-[#5C6650] font-medium">Scan</span>
             </p>
-            <p className="text-xs text-[#D1D5DB]/50">{t('landing.footer.rights')}</p>
+            <p className="text-xs text-[#5C6650]">{t('landing.footer.rights')}</p>
           </div>
-          <div className="flex gap-6 text-sm text-[#D1D5DB]/60">
+          <div className="flex gap-6 text-sm text-[#5C6650]">
             {[
               t('landing.footer.about'),
               t('landing.footer.features'),
               t('landing.footer.github'),
               t('landing.footer.contact'),
             ].map((l) => (
-              <a key={l} href="#" className="hover:text-[#14B8A6] transition-colors">{l}</a>
+              <a key={l} href="#" className="hover:text-[#232B1B] transition-colors">{l}</a>
             ))}
           </div>
         </div>

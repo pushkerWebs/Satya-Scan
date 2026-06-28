@@ -97,7 +97,12 @@ function buildCheckDocument(userId, inputType, content, result) {
       originalText: result._originalText || content?.slice(0, 10000),
       trustScore: result.trustScore,
       aiScore: result.aiScore,
+      aiReasoning: result.aiReasoning,
       sourceScore: result.sourceCredibility,
+      pageType: result.pageType,
+      pageTypeLabel: result.pageTypeLabel,
+      pageTypeDescription: result.pageTypeDescription,
+      pageVerdict: result.pageVerdict,
       claims: result.claims?.map((c) => ({
         text: c.text,
         verdict: c.verdict,

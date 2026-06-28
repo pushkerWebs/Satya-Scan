@@ -33,7 +33,10 @@ function NotFoundPage() {
 
 function Layout({ children }) {
   const { pathname } = useLocation();
-  const showNav = !PAGES_WITH_OWN_NAV.includes(pathname);
+  const hideNav =
+    PAGES_WITH_OWN_NAV.includes(pathname) ||
+    pathname.startsWith('/results/');
+  const showNav = !hideNav;
   return (
     <div className="min-h-screen bg-[#0B0B0B] flex flex-col">
       {showNav && <Navbar />}
@@ -52,6 +55,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/analyze" element={<AnalyzePage />} />
+                <Route path="/results/:checkId" element={<ResultsPage />} />
                 <Route path="/results" element={<ResultsPage />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/report/:id" element={<ReportPage />} />
