@@ -6,7 +6,6 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Required — server will not start without these
 const REQUIRED_VARS = [
-  'PORT',
   'MONGO_URI',
   'JWT_SECRET',
   'GEMINI_API_KEY',
