@@ -84,9 +84,9 @@ export default function AnalyzePage() {
     }
   };
 
-  if (loading) return <LoadingState currentStep={progressStep} />;
-
   const [menuOpen, setMenuOpen] = useState(false);
+
+  if (loading) return <LoadingState currentStep={progressStep} />;
 
   return (
     <div className="min-h-screen bg-[#FBE8CE] text-[#232B1B] font-sans">
