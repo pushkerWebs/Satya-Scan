@@ -6,7 +6,7 @@ import { ShieldCheck, Zap } from 'lucide-react';
  */
 export default function Header({ uiLang, onToggleLang }) {
   return (
-    <header className="relative px-5 pt-5 pb-4 overflow-hidden">
+    <header className="relative px-5 pt-4 pb-3 overflow-hidden">
       {/* Ambient teal top glow */}
       <div className="header-glow absolute inset-x-0 top-0 h-24 pointer-events-none" />
 

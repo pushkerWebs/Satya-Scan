@@ -86,7 +86,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const authData = await chrome.storage.local.get('satyascan_token');
     const token = authData['satyascan_token'] || null;
     const result = await verifySelectedText(text, responseLanguage, token);
-    
+
     // Check cancellation
     console.log('[Background] Checking cancellation for requestId:', requestId);
     const current = await chrome.storage.local.get(STORAGE_KEY_RESULT);
@@ -95,12 +95,40 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
     if (!savedVal || savedVal.requestId !== requestId || savedVal.status !== 'loading') {
       console.log(`[Background] Selection analysis requestId ${requestId} cancelled or overwritten. Ignoring result.`);
+      chrome.action.setBadgeText({ text: '' });
+      return;
+    }
+
+    if (result && result.success === false) {
+      console.log('[Background] verifySelectedText returned success: false. Saving status: error');
+      await saveState({
+        status: 'error',
+        errorType: result.errorType || 'default',
+        statusCode: result.statusCode || 500,
+        message: result.message || 'Something unexpected happened while verifying this claim.',
+        devDetails: result.devDetails || result.message || '',
+        requestId,
+        inputType: 'text',
+        text
+      });
+      chrome.action.setBadgeText({ text: '' });
+      console.log('[Background] Notifying popup of VERIFY_ERROR');
+      notifyPopup({
+        type: 'VERIFY_ERROR',
+        errorType: result.errorType || 'default',
+        statusCode: result.statusCode || 500,
+        message: result.message || 'Something unexpected happened while verifying this claim.',
+        devDetails: result.devDetails || result.message || '',
+        requestId,
+        inputType: 'text',
+        text
+      });
       return;
     }
 
     console.log('[Background] verifySelectedText completed successfully.');
     console.log('[Background] Writing result to storage with status done');
-    await saveState({ status: 'done', result, requestId });
+    await saveState({ status: 'done', result, requestId, text, inputType: 'text' });
     chrome.action.setBadgeText({ text: '' });
     console.log('[Background] Notifying popup of VERIFY_RESULT');
     notifyPopup({ type: 'VERIFY_RESULT', result, requestId });
@@ -109,7 +137,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     if (err.stack) {
       console.error('[Background] Stack trace:', err.stack);
     }
-    
+
     // Check cancellation
     const current = await chrome.storage.local.get(STORAGE_KEY_RESULT);
     const savedVal = current[STORAGE_KEY_RESULT];
@@ -117,16 +145,37 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
     if (!savedVal || savedVal.requestId !== requestId || savedVal.status !== 'loading') {
       console.log(`[Background] Selection analysis requestId ${requestId} cancelled. Ignoring error.`);
+      chrome.action.setBadgeText({ text: '' });
       return;
     }
 
     console.log('[Background] Thrown exception caught in background clicked handler:', err.message);
-    const message = err?.message || 'Something went wrong. Please try again.';
+    const message = err?.message || 'Something unexpected happened while verifying this claim.';
     console.log('[Background] Writing result to storage with status error');
-    await saveState({ status: 'error', message, requestId });
+    await saveState({
+      status: 'error',
+      errorType: 'default',
+      statusCode: 500,
+      message,
+      devDetails: err.stack || err.message,
+      requestId,
+      inputType: 'text',
+      text
+    });
     chrome.action.setBadgeText({ text: '' });
     console.log('[Background] Notifying popup of VERIFY_ERROR');
-    notifyPopup({ type: 'VERIFY_ERROR', message, requestId });
+    notifyPopup({
+      type: 'VERIFY_ERROR',
+      errorType: 'default',
+      statusCode: 500,
+      message,
+      devDetails: err.stack || err.message,
+      requestId,
+      inputType: 'text',
+      text
+    });
+  } finally {
+    chrome.action.setBadgeText({ text: '' });
   }
 });
 

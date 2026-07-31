@@ -624,12 +624,23 @@ function SourceCard({ src, index, t }) {
 
 // ─── Sub-Views ──────────────────────────────────────────────────────────────
 
-function LoadingView({ text, onBack, mainClaim, t }) {
+// ─── Sub-Views ──────────────────────────────────────────────────────────────
+
+function LoadingView({ text, onBack, onTimeout, mainClaim, t }) {
   const _t = t || _tEN;
   const [currentStep, setCurrentStep] = useState(0);
   const [barWidths, setBarWidths] = useState({});
 
   const STEP_KEYS = ['extracting', 'searching', 'factChecking', 'analyzing', 'generating'];
+
+  // Safety Timeout Guard: force exit after 30s if still loading
+  useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      console.warn('[LoadingView] Safety timeout reached (30s). Exiting loading state.');
+      if (onTimeout) onTimeout();
+    }, 30000);
+    return () => clearTimeout(safetyTimer);
+  }, [onTimeout]);
 
   useEffect(() => {
     // Increase step over time to simulate progress
@@ -662,10 +673,10 @@ function LoadingView({ text, onBack, mainClaim, t }) {
       <div className="flex items-center justify-between px-5 pt-3.5 pb-2.5 border-b border-[#C3CC9B] bg-[#FBE8CE]">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-xs text-[#5C6650] hover:text-[#232B1B] transition-colors font-bold"
+          className="flex items-center gap-1.5 text-xs text-[#5C6650] hover:text-[#232B1B] transition-colors font-bold cursor-pointer"
         >
           <ArrowLeft size={13} />
-          {_t('extension.back')}
+          {_t('extension.back', 'Back')}
         </button>
         <span className="text-[10px] font-bold text-[#5C6650]/60 flex items-center gap-1">
           <Loader2 size={11} className="text-[#768E56] animate-spin" />
@@ -754,77 +765,119 @@ function LoadingView({ text, onBack, mainClaim, t }) {
   );
 }
 
-
-
-function ErrorView({ errorType, message, evidenceCollected, onBack, onRetry, t }) {
+function ErrorView({ errorType, statusCode, message, devDetails, onBack, onRetry, onHome, t }) {
   const _t = t || _tEN;
-  // Infer errorType from message if not explicitly provided
-  let activeType = errorType;
-  if (!activeType && message) {
-    const lower = message.toLowerCase();
-    if (lower.includes('quota') || lower.includes('429') || lower.includes('limit')) {
-      activeType = 'quota';
-    } else if (lower.includes('timeout') || lower.includes('timed out')) {
-      activeType = 'timeout';
-    } else if (lower.includes('reach') || lower.includes('failed to fetch') || lower.includes('connection') || lower.includes('network')) {
-      activeType = 'network';
-    } else if (lower.includes('offline') || lower.includes('backend') || lower.includes('connect')) {
-      activeType = 'backend';
-    } else if (lower.includes('no evidence') || lower.includes('evidence could not be retrieved') || lower.includes('no_evidence')) {
-      activeType = 'no_evidence';
-    }
+  const isDev = import.meta.env.DEV;
+
+  // Determine standard error key for localized description
+  let key = String(errorType || statusCode || 'default');
+  if (statusCode === 503 || key === '503') key = '503';
+  else if (statusCode === 403 || key === '403') key = '403';
+  else if (statusCode === 401 || key === '401') key = '401';
+  else if (statusCode === 429 || key === '429' || key === 'quota') key = '429';
+  else if (statusCode === 504 || key === '504' || key === 'timeout') key = '504';
+  else if (statusCode === 502 || key === '502') key = '502';
+  else if (statusCode === 500 || key === '500') key = '500';
+  else if (key === 'network' || statusCode === 0) key = 'network';
+  else if (key === 'no_evidence') key = 'noEvidence';
+  else key = 'default';
+
+  // Localized description resolution
+  let description = _t(`extension.errorDescs.${key}`);
+  if (!description || description === `extension.errorDescs.${key}`) {
+    description = message || _t('extension.errorDescs.default', 'Something unexpected happened while verifying this claim.');
   }
-  if (!activeType) activeType = 'default';
 
-  const isExtractionError = message && message.includes('Unable to extract page content');
+  // Override generic server error messages with explicit friendly text
+  if (statusCode === 503 && (!message || message.includes('Server error'))) {
+    description = _t('extension.errorDescs.503', 'The AI service is currently experiencing high demand. Please try again in a few moments.');
+  } else if (statusCode === 403 && (!message || message.includes('Server error'))) {
+    description = _t('extension.errorDescs.403', 'The AI service rejected the request because the API key is invalid or unavailable.');
+  } else if ((key === 'network' || statusCode === 0) && (!message || message.includes('Server error'))) {
+    description = _t('extension.errorDescs.network', 'Unable to reach the SatyaScan servers. Please check your internet connection.');
+  } else if ((key === '504' || key === 'timeout') && (!message || message.includes('Server error'))) {
+    description = _t('extension.errorDescs.504', 'The verification request took too long to complete.');
+  }
 
-  const configs = {
-    quota:      { Icon: TriangleAlert, iconColor: '#C62828', bgLight: 'rgba(198,40,40,0.06)',  borderCol: 'rgba(198,40,40,0.15)',  title: _t('extension.errorTitles.quota'),            description: _t('extension.errorDescs.quota'),            subtext: _t('extension.errorSubtext.quota') },
-    timeout:    { Icon: Clock,         iconColor: '#D87D0A', bgLight: 'rgba(216,125,10,0.06)', borderCol: 'rgba(216,125,10,0.15)', title: _t('extension.errorTitles.timeout'),          description: _t('extension.errorDescs.timeout'),          subtext: _t('extension.errorSubtext.timeout') },
-    backend:    { Icon: Globe,         iconColor: '#C62828', bgLight: 'rgba(198,40,40,0.06)',  borderCol: 'rgba(198,40,40,0.15)',  title: _t('extension.errorTitles.backend'),          description: _t('extension.errorDescs.backend'),          subtext: _t('extension.errorSubtext.backend') },
-    network:    { Icon: Globe,         iconColor: '#C62828', bgLight: 'rgba(198,40,40,0.06)',  borderCol: 'rgba(198,40,40,0.15)',  title: _t('extension.errorTitles.network'),          description: _t('extension.errorDescs.network'),          subtext: _t('extension.errorSubtext.network') },
-    no_evidence:{ Icon: Inbox,         iconColor: '#5C6650', bgLight: 'rgba(92,102,80,0.06)',  borderCol: 'rgba(92,102,80,0.15)',  title: _t('extension.errorTitles.noEvidence'),       description: _t('extension.errorDescs.noEvidence'),       subtext: _t('extension.errorSubtext.noEvidence') },
-    default:    { Icon: TriangleAlert, iconColor: '#C62828', bgLight: 'rgba(198,40,40,0.08)',  borderCol: 'rgba(198,40,40,0.2)',
-      title: isExtractionError ? _t('extension.errorTitles.extractionBlocked') : _t('extension.errorTitles.analysisFailed'),
-      description: isExtractionError ? _t('extension.errorDescs.extractionBlocked') : (message || _t('extension.errorDescs.default')),
-      subtext: isExtractionError ? _t('extension.errorSubtext.extractionBlocked') : _t('extension.errorSubtext.default'),
-    },
-  };
-
-  const current = configs[activeType] || configs.default;
-  const ScreenIcon = current.Icon;
+  const title = _t('extension.verificationFailed', 'Verification Failed');
 
   return (
     <div className="flex flex-col flex-grow h-full max-h-[500px]">
+      {/* Header Bar */}
       <div className="flex items-center justify-between px-5 pt-3.5 pb-2.5 border-b border-[#C3CC9B] bg-[#FBE8CE]">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-xs text-[#5C6650] hover:text-[#232B1B] transition-colors font-bold">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-xs text-[#5C6650] hover:text-[#232B1B] transition-colors font-bold cursor-pointer"
+        >
           <ArrowLeft size={13} />
-          {_t('extension.back')}
+          {_t('extension.back', 'Back')}
         </button>
-        <span className="text-[10px] font-bold text-[#C62828]/70 flex items-center gap-1">
-          <TriangleAlert size={10} color="#C62828" />
-          {_t('extension.failed')}
+        <span className="text-[10px] font-bold text-[#C62828] flex items-center gap-1">
+          <TriangleAlert size={11} className="text-[#C62828]" />
+          {_t('extension.failed', 'Failed')}
         </span>
       </div>
 
-      <div className="flex flex-col items-center justify-center flex-grow px-6 py-8 gap-5 animate-fade-in-up">
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-sm"
-          style={{ background: current.bgLight, border: `1px solid ${current.borderCol}` }}>
-          <ScreenIcon size={30} style={{ color: current.iconColor }} />
+      {/* Main Error Body */}
+      <div className="flex flex-col items-center justify-center flex-grow px-6 py-6 gap-4 animate-fade-in-up text-center overflow-y-auto">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-[#C62828]/10 border border-[#C62828]/20 shadow-sm shrink-0">
+          <CircleX size={30} className="text-[#C62828]" />
         </div>
-        <div className="text-center space-y-2 max-w-[280px]">
-          <h2 className="text-sm font-black text-[#232B1B]" style={{ lineHeight: '1.25' }}>{current.title}</h2>
-          <p className="text-xs text-[#5C6650] leading-relaxed font-semibold">{current.description}</p>
-          {current.subtext && (
-            <p className="text-[10px] font-extrabold text-[#C62828]/80 uppercase tracking-wide pt-1">{current.subtext}</p>
-          )}
+
+        <div className="space-y-2 max-w-[300px]">
+          <h2 className="text-base font-black text-[#232B1B] tracking-tight">
+            ❌ {title}
+          </h2>
+          <p className="text-xs text-[#5C6650] leading-relaxed font-medium px-1">
+            {description}
+          </p>
         </div>
-        <div className="flex items-center gap-3 mt-3 w-full justify-center">
-          <button type="button" onClick={onBack} className="btn-secondary px-5 py-2.5 text-xs font-black rounded-xl border border-[#C3CC9B] hover:border-[#768E56]" style={{ fontSize: '11px', minWidth: '100px' }}>
-            {_t('extension.back')}
+
+        {/* Development Only Debug Section (Requirement 6) */}
+        {isDev && (
+          <div className="w-full max-w-[320px] rounded-xl p-3 bg-red-950/10 border border-red-800/20 text-left space-y-1.5 my-1">
+            <div className="flex items-center justify-between border-b border-red-800/15 pb-1">
+              <span className="text-[9px] font-black uppercase tracking-wider text-red-800">
+                🔧 DEV DEBUG INFO
+              </span>
+              <span className="text-[10px] font-mono font-bold text-red-700">
+                {_t('extension.statusCode', 'Status Code')}: {statusCode || (key === 'network' ? 0 : 500)}
+              </span>
+            </div>
+            <div className="text-[10px] font-mono text-red-900 leading-snug break-words max-h-20 overflow-y-auto pt-0.5">
+              <span className="font-bold">{_t('extension.errorDetails', 'Error')}:</span>
+              <p className="mt-0.5 whitespace-pre-wrap">{devDetails || message || 'No detailed error message attached'}</p>
+            </div>
+          </div>
+        )}
+
+        {/* 3 Action Buttons (Requirement 5) */}
+        <div className="grid grid-cols-3 gap-2 w-full max-w-[320px] mt-2">
+          <button
+            type="button"
+            onClick={onRetry}
+            className="py-2.5 px-2 rounded-xl text-xs font-black btn-primary text-[#FBE8CE] flex items-center justify-center gap-1 cursor-pointer shadow-sm"
+          >
+            <span>🔄</span>
+            <span>{_t('extension.tryAgain', 'Try Again')}</span>
           </button>
-          <button type="button" onClick={onRetry} className="btn-primary px-5 py-2.5 text-xs font-black rounded-xl text-[#FBE8CE]" style={{ fontSize: '11px', minWidth: '100px' }}>
-            {_t('extension.retry')}
+
+          <button
+            type="button"
+            onClick={onBack}
+            className="py-2.5 px-2 rounded-xl text-xs font-black border border-[#C3CC9B] btn-secondary text-[#5C6650] hover:text-[#232B1B] flex items-center justify-center gap-1 cursor-pointer"
+          >
+            <span>←</span>
+            <span>{_t('extension.back', 'Back')}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onHome}
+            className="py-2.5 px-2 rounded-xl text-xs font-black border border-[#C3CC9B] btn-secondary text-[#5C6650] hover:text-[#232B1B] flex items-center justify-center gap-1 cursor-pointer"
+          >
+            <span>🏠</span>
+            <span>{_t('extension.home', 'Home')}</span>
           </button>
         </div>
       </div>
@@ -1197,8 +1250,14 @@ function ResultView({ result, onBack, t }) {
 export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onSignIn }) {
   const [view, setView]         = useState('home');
   const [result, setResult]     = useState(null);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorData, setErrorData] = useState({
+    errorType: 'default',
+    statusCode: 500,
+    message: '',
+    devDetails: ''
+  });
   const [loadingText, setLoadingText] = useState('');
+  const [lastScanText, setLastScanText] = useState('');
   const [history, setHistory]   = useState([]);
   const [lastInputType, setLastInputType] = useState('text');
   const [mainClaim, setMainClaim] = useState(null);
@@ -1214,12 +1273,19 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
   const t = createT(uiLang);
 
   // ── Direct Scan Handler ─────────────────────────────────────────────────
-  const handleDirectScan = async () => {
-    const textToScan = pasteText.trim();
-    if (!textToScan) return;
+  const handleDirectScanText = async (textToScan) => {
+    const trimmed = (textToScan || '').trim();
+    if (!trimmed) return;
     
-    if (textToScan.length < 10) {
-      setErrorMsg('Text is too short. Please provide at least a sentence.');
+    if (trimmed.length < 10) {
+      setErrorData({
+        errorType: 'default',
+        statusCode: 400,
+        message: uiLang === 'hi'
+          ? 'टेक्स्ट बहुत छोटा है। कृपया कम से कम एक वाक्य प्रदान करें।'
+          : 'Text is too short. Please provide at least a sentence.',
+        devDetails: 'Validation error: Input length < 10 characters'
+      });
       setView('error');
       return;
     }
@@ -1227,25 +1293,49 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
     const requestId = Date.now() + '-' + Math.random().toString(36).substring(2, 9);
     activeRequestIdRef.current = requestId;
     
-    // Set loading state
-    setLoadingText(textToScan);
+    setLastScanText(trimmed);
+    setLoadingText(trimmed);
     setLastInputType('text');
     setMainClaim(null);
     setView('loading');
     
     // Save loading state to storage (in case popup closes)
     chrome.storage.local.set({
-      [STORAGE_KEY_RESULT]: { status: 'loading', text: textToScan, requestId, inputType: 'text', savedAt: new Date().toISOString() }
+      [STORAGE_KEY_RESULT]: { status: 'loading', text: trimmed, requestId, inputType: 'text', savedAt: new Date().toISOString() }
     });
 
     try {
       const responseLanguage = uiLang || 'en';
-      const result = await verifySelectedText(textToScan, responseLanguage, token);
+      const result = await verifySelectedText(trimmed, responseLanguage, token);
       
       if (activeRequestIdRef.current !== requestId) return; // Cancelled
       
+      if (result && result.success === false) {
+        chrome.storage.local.set({
+          [STORAGE_KEY_RESULT]: {
+            status: 'error',
+            errorType: result.errorType || 'default',
+            statusCode: result.statusCode || 500,
+            message: result.message || 'Something unexpected happened while verifying this claim.',
+            devDetails: result.devDetails || '',
+            requestId,
+            inputType: 'text',
+            text: trimmed,
+            savedAt: new Date().toISOString()
+          }
+        });
+        setErrorData({
+          errorType: result.errorType || 'default',
+          statusCode: result.statusCode || 500,
+          message: result.message || 'Something unexpected happened while verifying this claim.',
+          devDetails: result.devDetails || ''
+        });
+        setView('error');
+        return;
+      }
+
       chrome.storage.local.set({
-        [STORAGE_KEY_RESULT]: { status: 'done', result, requestId, savedAt: new Date().toISOString() }
+        [STORAGE_KEY_RESULT]: { status: 'done', result, requestId, text: trimmed, savedAt: new Date().toISOString() }
       });
       
       setResult(result);
@@ -1255,14 +1345,33 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
     } catch (err) {
       if (activeRequestIdRef.current !== requestId) return; // Cancelled
       
-      const message = err?.message || 'Something went wrong. Please try again.';
+      const message = err?.message || 'Something unexpected happened while verifying this claim.';
       chrome.storage.local.set({
-        [STORAGE_KEY_RESULT]: { status: 'error', message, requestId, savedAt: new Date().toISOString() }
+        [STORAGE_KEY_RESULT]: {
+          status: 'error',
+          errorType: 'default',
+          statusCode: 500,
+          message,
+          devDetails: err.stack || err.message,
+          requestId,
+          inputType: 'text',
+          text: trimmed,
+          savedAt: new Date().toISOString()
+        }
       });
       
-      setErrorMsg(message);
+      setErrorData({
+        errorType: 'default',
+        statusCode: 500,
+        message,
+        devDetails: err.stack || err.message
+      });
       setView('error');
     }
+  };
+
+  const handleDirectScan = () => {
+    handleDirectScanText(pasteText);
   };
 
   // ── Sync history setting ──────────────────────────────────────────────────
@@ -1442,6 +1551,43 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
     });
   }, []);
 
+  // ── Navigation Handlers ─────────────────────────────────────────────────
+  const handleHome = useCallback(() => {
+    chrome.storage.local.remove(STORAGE_KEY_RESULT);
+    activeRequestIdRef.current = null;
+    setView('home');
+    setResult(null);
+    setErrorData({ errorType: 'default', statusCode: 500, message: '', devDetails: '' });
+    setLoadingText('');
+    setMainClaim(null);
+  }, []);
+
+  const handleBack = useCallback(() => {
+    handleHome();
+  }, [handleHome]);
+
+  const handleRetry = useCallback(() => {
+    if (lastScanText && lastScanText.trim()) {
+      console.log('[Popup] Retrying verification for text:', lastScanText);
+      handleDirectScanText(lastScanText);
+    } else {
+      handleHome();
+    }
+  }, [lastScanText, handleHome]);
+
+  const handleTimeout = useCallback(() => {
+    console.warn('[Popup] Loading View safety timeout triggered (30s)');
+    setErrorData({
+      errorType: '504',
+      statusCode: 504,
+      message: uiLang === 'hi'
+        ? 'सत्यापन अनुरोध पूरा होने में बहुत अधिक समय लगा।'
+        : 'The verification request took too long to complete.',
+      devDetails: 'Loading screen timed out after 30,000ms'
+    });
+    setView('error');
+  }, [uiLang]);
+
   // ── On mount: load history and hydrated states ──────────────────────────
   useEffect(() => {
     console.log('[Popup] Mount - loading history');
@@ -1451,28 +1597,37 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
     chrome.storage.local.get(STORAGE_KEY_RESULT, (data) => {
       const saved = data[STORAGE_KEY_RESULT];
       console.log('[Popup] Mount storage retrieval:', JSON.stringify(saved));
-      if (!saved) {
-        console.log('[Popup] Mount - no active result in storage');
-        return;
-      }
+      if (!saved) return;
 
-      console.log('[Popup] Mount - active result status:', saved.status, 'requestId:', saved.requestId);
+      if (saved.text) setLastScanText(saved.text);
+
       if (saved.status === 'loading') {
         setLoadingText(saved.text || '');
         setLastInputType(saved.inputType || 'text');
         setMainClaim(saved.mainClaim || null);
         activeRequestIdRef.current = saved.requestId || null;
-        console.log('[Popup] Mount - Set activeRequestIdRef to:', activeRequestIdRef.current);
-        console.log('[Popup] Mount - Switching to LoadingView');
         setView('loading');
       } else if (saved.status === 'done' && saved.result) {
-        console.log('[Popup] Mount - Stored result found. Switching to ResultView');
-        setResult(saved.result);
-        setView('result');
-        saveToHistory(saved.result);
+        if (saved.result.success === false) {
+          setErrorData({
+            errorType: saved.result.errorType || 'default',
+            statusCode: saved.result.statusCode || 500,
+            message: saved.result.message || 'Something unexpected happened while verifying this claim.',
+            devDetails: saved.result.devDetails || ''
+          });
+          setView('error');
+        } else {
+          setResult(saved.result);
+          setView('result');
+          saveToHistory(saved.result);
+        }
       } else if (saved.status === 'error') {
-        console.log('[Popup] Mount - Stored error found. Switching to ErrorView');
-        setErrorMsg(saved.message || 'Unknown error');
+        setErrorData({
+          errorType: saved.errorType || 'default',
+          statusCode: saved.statusCode || 500,
+          message: saved.message || 'Something unexpected happened while verifying this claim.',
+          devDetails: saved.devDetails || ''
+        });
         setLastInputType(saved.inputType || 'text');
         setView('error');
       }
@@ -1484,50 +1639,47 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
     const handleStorageChange = (changes, areaName) => {
       if (areaName !== 'local') return;
 
-      console.log('[Popup] Storage change event fired. Changes:', JSON.stringify(changes));
-
       if (changes[STORAGE_KEY_RESULT]) {
         const newValue = changes[STORAGE_KEY_RESULT].newValue;
-        console.log('[Popup] Storage change key matching. New value:', JSON.stringify(newValue));
-        if (!newValue) {
-          console.log('[Popup] Storage change - newValue is empty');
-          return;
-        }
+        if (!newValue) return;
 
-        console.log('[Popup] Storage change - newValue.requestId:', newValue.requestId, 'activeRequestIdRef:', activeRequestIdRef.current);
-        
+        if (newValue.text) setLastScanText(newValue.text);
+
         if (newValue.status === 'loading') {
-          console.log('[Popup] Storage change status is loading. Updating activeRequestIdRef to:', newValue.requestId);
           activeRequestIdRef.current = newValue.requestId || null;
-        } else if (activeRequestIdRef.current && newValue.requestId && newValue.requestId !== activeRequestIdRef.current) {
-          console.log('[Popup] Storage change ignored due to requestId mismatch. New:', newValue.requestId, 'Active:', activeRequestIdRef.current);
-          return;
-        }
-
-        if (newValue.status === 'loading') {
-          console.log('[Popup] Storage change - status is loading. Switching to LoadingView');
           setLoadingText(newValue.text || '');
           setLastInputType(newValue.inputType || 'text');
           setMainClaim(newValue.mainClaim || null);
           setView('loading');
-          if (newValue.mainClaim) {
-            console.log('[STAGE 11] Popup received extracted claim SUCCESS. Claim: ' + newValue.mainClaim);
-          }
         } else if (newValue.status === 'done' && newValue.result) {
-          console.log('[STAGE 15] Popup receives result SUCCESS. Switching to ResultView');
-          setResult(newValue.result);
-          setView('result');
-          saveToHistory(newValue.result);
+          activeRequestIdRef.current = newValue.requestId || null;
+          if (newValue.result.success === false) {
+            setErrorData({
+              errorType: newValue.result.errorType || 'default',
+              statusCode: newValue.result.statusCode || 500,
+              message: newValue.result.message || 'Something unexpected happened while verifying this claim.',
+              devDetails: newValue.result.devDetails || ''
+            });
+            setView('error');
+          } else {
+            setResult(newValue.result);
+            setView('result');
+            saveToHistory(newValue.result);
+          }
         } else if (newValue.status === 'error') {
-          console.log('[Popup] Storage change - status is error. Switching to ErrorView. Message:', newValue.message);
-          setErrorMsg(newValue.message || 'Unknown error');
+          activeRequestIdRef.current = newValue.requestId || null;
+          setErrorData({
+            errorType: newValue.errorType || 'default',
+            statusCode: newValue.statusCode || 500,
+            message: newValue.message || 'Something unexpected happened while verifying this claim.',
+            devDetails: newValue.devDetails || ''
+          });
           setLastInputType(newValue.inputType || 'text');
           setView('error');
         }
       }
 
       if (changes.satyascan_history) {
-        console.log('[Popup] Storage change - history updated');
         setHistory(changes.satyascan_history.newValue || []);
       }
     };
@@ -1540,35 +1692,37 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
   useEffect(() => {
     const handler = (message) => {
       console.log('[Popup] Runtime message received:', JSON.stringify(message));
+      if (message.text) setLastScanText(message.text);
+
       if (message.type === 'VERIFY_LOADING') {
-        console.log('[Popup] Message VERIFY_LOADING received. Setting activeRequestIdRef to:', message.requestId);
         activeRequestIdRef.current = message.requestId || null;
         setLoadingText(message.text || '');
         setLastInputType(message.inputType || 'text');
         setMainClaim(message.mainClaim || null);
-        console.log('[Popup] Message VERIFY_LOADING - Switching to LoadingView');
         setView('loading');
-        if (message.mainClaim) {
-          console.log('[STAGE 11] Popup received extracted claim SUCCESS. Claim: ' + message.mainClaim);
-        }
       } else if (message.type === 'VERIFY_RESULT' && message.result) {
-        console.log('[Popup] Message VERIFY_RESULT received. message requestId:', message.requestId, 'activeRequestIdRef:', activeRequestIdRef.current);
-        if (activeRequestIdRef.current && message.requestId && message.requestId !== activeRequestIdRef.current) {
-          console.log('[Popup] Mismatched VERIFY_RESULT ignored. Msg:', message.requestId, 'Active:', activeRequestIdRef.current);
-          return;
+        activeRequestIdRef.current = message.requestId || null;
+        if (message.result.success === false) {
+          setErrorData({
+            errorType: message.result.errorType || 'default',
+            statusCode: message.result.statusCode || 500,
+            message: message.result.message || 'Something unexpected happened while verifying this claim.',
+            devDetails: message.result.devDetails || ''
+          });
+          setView('error');
+        } else {
+          setResult(message.result);
+          setView('result');
+          saveToHistory(message.result);
         }
-        console.log('[STAGE 15] Popup receives result SUCCESS. Switching to ResultView');
-        setResult(message.result);
-        setView('result');
-        saveToHistory(message.result);
       } else if (message.type === 'VERIFY_ERROR') {
-        console.log('[Popup] Message VERIFY_ERROR received. message requestId:', message.requestId, 'activeRequestIdRef:', activeRequestIdRef.current);
-        if (activeRequestIdRef.current && message.requestId && message.requestId !== activeRequestIdRef.current) {
-          console.log('[Popup] Mismatched VERIFY_ERROR ignored. Msg:', message.requestId, 'Active:', activeRequestIdRef.current);
-          return;
-        }
-        console.log('[Popup] Message VERIFY_ERROR - Switching to ErrorView. Message:', message.message);
-        setErrorMsg(message.message || 'Unknown error');
+        activeRequestIdRef.current = message.requestId || null;
+        setErrorData({
+          errorType: message.errorType || 'default',
+          statusCode: message.statusCode || 500,
+          message: message.message || 'Something unexpected happened while verifying this claim.',
+          devDetails: message.devDetails || ''
+        });
         setView('error');
       }
     };
@@ -1576,17 +1730,6 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
     chrome.runtime.onMessage.addListener(handler);
     return () => chrome.runtime.onMessage.removeListener(handler);
   }, [saveToHistory]);
-
-  // ── Reset to home view ───────────────────────────────────────────────────
-  const handleBack = useCallback(() => {
-    chrome.storage.local.remove(STORAGE_KEY_RESULT);
-    activeRequestIdRef.current = null;
-    setView('home');
-    setResult(null);
-    setErrorMsg('');
-    setLoadingText('');
-    setMainClaim(null);
-  }, []);
 
   // ── Click history card to view ───────────────────────────────────────────
   const handleHistoryCardClick = (item) => {
@@ -1610,19 +1753,39 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
     setView('result');
   };
 
-  const handleRetry = useCallback(() => {
-    handleBack();
-  }, [handleBack]);
-
   // ── Render view transition router ────────────────────────────────────────
-  if (view === 'loading') return <LoadingView text={loadingText} onBack={handleBack} mainClaim={mainClaim} t={t} />;
+  if (view === 'loading') return <LoadingView text={loadingText} onBack={handleBack} onTimeout={handleTimeout} mainClaim={mainClaim} t={t} />;
   if (view === 'result' && result) {
     if (result.success === false) {
-      return <ErrorView errorType={result.errorType} message={result.message} evidenceCollected={result.evidenceCollected} onBack={handleBack} onRetry={handleRetry} t={t} />;
+      return (
+        <ErrorView
+          errorType={result.errorType}
+          statusCode={result.statusCode}
+          message={result.message}
+          devDetails={result.devDetails}
+          onBack={handleBack}
+          onRetry={handleRetry}
+          onHome={handleHome}
+          t={t}
+        />
+      );
     }
     return <ResultView result={result} onBack={handleBack} t={t} />;
   }
-  if (view === 'error') return <ErrorView message={errorMsg} onBack={handleBack} onRetry={handleRetry} t={t} />;
+  if (view === 'error') {
+    return (
+      <ErrorView
+        errorType={errorData.errorType}
+        statusCode={errorData.statusCode}
+        message={errorData.message}
+        devDetails={errorData.devDetails}
+        onBack={handleBack}
+        onRetry={handleRetry}
+        onHome={handleHome}
+        t={t}
+      />
+    );
+  }
   
   if (view === 'settings') {
     return (
@@ -1643,11 +1806,11 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
 
   // ─── HOME VIEW ───────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col flex-grow animate-fade-in-up h-full max-h-[500px]">
+    <div className="flex flex-col flex-grow animate-fade-in-up h-full max-h-[500px] overflow-hidden">
       
       {/* Hero Banner card */}
       <div
-        className="mx-5 mt-5 mb-4 px-4 py-3.5 rounded-xl flex items-center gap-3 bg-[#E4DFB5] border border-[#C3CC9B]"
+        className="mx-5 mt-3 mb-2 px-4 py-2.5 rounded-xl flex items-center gap-3 bg-[#E4DFB5] border border-[#C3CC9B]"
       >
         <div
           className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center animate-spin-slow bg-[#768E56]"
@@ -1662,7 +1825,7 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
       </div>
 
       {/* ── Profile / Account Status Section ── */}
-      <div className="px-5 mb-4">
+      <div className="px-5 mb-2">
         {token && user ? (
           <div className="rounded-xl p-3 bg-[#768E56]/10 border border-[#768E56]/20 text-left flex items-start justify-between gap-3 shadow-sm">
             <div className="flex items-start gap-2.5 min-w-0">
@@ -1751,17 +1914,18 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
       )}
 
       {/* Primary Actions / Direct Input */}
-      <div className="px-5 flex flex-col gap-3">
+      <div className="px-5 flex flex-col gap-1.5">
         <SectionTitle icon={<FileText size={12} />} title={t('extension.verifySelectedText', 'Paste Text to Verify')} />
         
-        <div className="flex flex-col gap-2 rounded-xl bg-[#E4DFB5] p-3 border border-[#C3CC9B]">
+        <div className="flex flex-col gap-1.5 rounded-xl bg-[#E4DFB5] p-2.5 border border-[#C3CC9B]">
           <textarea
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
             placeholder={t('extension.verifyHint', 'Paste any news claim or text here to verify...')}
-            className="w-full h-20 text-xs bg-transparent border-none outline-none resize-none text-[#232B1B] placeholder-[#5C6650]"
+            className="w-full text-xs bg-transparent border-none outline-none resize-none text-[#232B1B] placeholder-[#5C6650] leading-relaxed"
+            style={{ minHeight: '60px', maxHeight: '88px', overflowY: 'auto' }}
           />
-          <div className="flex justify-between items-center pt-2 border-t border-[#C3CC9B]/50">
+          <div className="flex justify-between items-center pt-1.5 border-t border-[#C3CC9B]/50">
             <span className="text-[9px] text-[#5C6650] font-semibold">
               {pasteText.length}/10000 chars
             </span>
@@ -1776,10 +1940,10 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
         </div>
       </div>
 
-      <div className="divider mx-5 my-4" />
+      <div className="divider mx-5 my-2" />
 
       {/* Scan History (Scrollable section) */}
-      <div className="px-5 flex-grow overflow-y-auto max-h-[160px] scroll-container">
+      <div className="px-5 flex-grow overflow-y-auto scroll-container pb-2">
         <div className="flex items-center justify-between mb-3">
           <SectionTitle icon={<Clock size={12} />} title={t('extension.recentScans')} badge={history.length} />
           {history.length > 0 && (
@@ -1837,7 +2001,7 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
       </div>
 
       {/* Sticky footer: language toggle + settings */}
-      <div className="mt-auto px-5 py-4 border-t border-[#C3CC9B] bg-[#E4DFB5] flex items-center gap-2">
+      <div className="mt-auto px-5 py-3 border-t border-[#C3CC9B] bg-[#E4DFB5] flex items-center gap-2">
         {/* Language toggle */}
         <button
           type="button"

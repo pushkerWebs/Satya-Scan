@@ -22,19 +22,37 @@ import { ANALYZE_ENDPOINT, MAX_TEXT_LENGTH } from '../lib/config';
  */
 export async function verifySelectedText(text, responseLanguage = 'en', token = null) {
   if (!text || typeof text !== 'string') {
-    throw new Error('No text provided for verification.');
+    return {
+      success: false,
+      errorType: 'default',
+      statusCode: 400,
+      message: responseLanguage === 'hi' ? 'सत्यापन के लिए कोई टेक्स्ट नहीं दिया गया।' : 'No text provided for verification.',
+      devDetails: 'Validation error: Empty or invalid text string'
+    };
   }
 
   const trimmed = text.trim();
 
   if (trimmed.length === 0) {
-    throw new Error('Selected text is empty.');
+    return {
+      success: false,
+      errorType: 'default',
+      statusCode: 400,
+      message: responseLanguage === 'hi' ? 'चयनित टेक्स्ट खाली है।' : 'Selected text is empty.',
+      devDetails: 'Validation error: Text is whitespace only'
+    };
   }
 
   if (trimmed.length > MAX_TEXT_LENGTH) {
-    throw new Error(
-      `Selected text is too long (${trimmed.length} chars). Max allowed: ${MAX_TEXT_LENGTH}.`
-    );
+    return {
+      success: false,
+      errorType: 'default',
+      statusCode: 400,
+      message: responseLanguage === 'hi'
+        ? `चयनित टेक्स्ट बहुत लंबा है (${trimmed.length} वर्ण)। अधिकतम: ${MAX_TEXT_LENGTH}।`
+        : `Selected text is too long (${trimmed.length} chars). Max allowed: ${MAX_TEXT_LENGTH}.`,
+      devDetails: `Validation error: Text length ${trimmed.length} > ${MAX_TEXT_LENGTH}`
+    };
   }
 
   const payload = {
@@ -55,63 +73,113 @@ export async function verifySelectedText(text, responseLanguage = 'en', token = 
   console.log('[VerifyService] POST /api/analyze');
   console.log('[VerifyService] Fetch URL:', requestUrl);
   console.log('[VerifyService] Request body:', JSON.stringify(payload));
-  console.log('[VerifyService] Request headers:', JSON.stringify(headers));
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.warn('[VerifyService] Aborting request due to 25s timeout');
+    controller.abort();
+  }, 25000);
 
   const startTime = Date.now();
   let response;
+  let rawText = '';
+  let data = null;
+
   try {
-    console.log('[VerifyService] Fetch started...');
+    console.log('[VerifyService] Fetch started with 25s AbortController timeout...');
     response = await fetch(requestUrl, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
   } catch (networkError) {
     const duration = Date.now() - startTime;
+    const isTimeout = networkError.name === 'AbortError';
     console.error('[VerifyService] Fetch failed:', networkError);
     console.error('[VerifyService] Response time (failed):', duration + 'ms');
-    if (networkError.stack) {
-      console.error('[VerifyService] Fetch error stack trace:', networkError.stack);
-    }
-    console.log('[VerifyService] Thrown exception during fetch:', networkError.message);
+
     return {
       success: false,
-      errorType: 'network',
-      message: 'Could not reach SatyaScan servers. Please check your internet connection.',
+      errorType: isTimeout ? '504' : 'network',
+      statusCode: isTimeout ? 504 : 0,
+      message: isTimeout
+        ? (responseLanguage === 'hi' ? 'सत्यापन अनुरोध पूरा होने में बहुत अधिक समय लगा।' : 'The verification request took too long to complete.')
+        : (responseLanguage === 'hi' ? 'सत्यास्कैन सर्वर तक पहुँचने में असमर्थ। कृपया अपना इंटरनेट कनेक्शन जाँचें।' : 'Unable to reach the SatyaScan servers. Please check your internet connection.'),
       evidenceCollected: false,
+      devDetails: isTimeout ? 'Request timed out after 25,000ms' : (networkError.message || 'Fetch network failure')
     };
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const duration = Date.now() - startTime;
-  console.log('[VerifyService] Response status:', response.status);
-  console.log('[VerifyService] Response time:', duration + 'ms');
-  console.log('[VerifyService] HTTP status code:', response.status);
+  const status = response.status;
+  console.log('[VerifyService] Response status:', status, 'Time:', duration + 'ms');
 
-  const rawText = await response.text();
-  console.log('[VerifyService] Raw response text length:', rawText.length);
-
-  let data = null;
   try {
-    data = JSON.parse(rawText);
-    console.log('[VerifyService] JSON parsed successfully');
-    console.log('[VerifyService] Parsed JSON:', JSON.stringify(data, null, 2));
+    rawText = await response.text();
+    console.log('[VerifyService] Raw response text length:', rawText.length);
+  } catch (textErr) {
+    console.error('[VerifyService] Failed reading response text:', textErr);
+    rawText = '';
+  }
+
+  try {
+    if (rawText) {
+      data = JSON.parse(rawText);
+      console.log('[VerifyService] JSON parsed successfully');
+    }
   } catch (parseError) {
-    console.error('[VerifyService] JSON parse error stack trace:', parseError.stack);
-    console.log('[VerifyService] Thrown exception parsing JSON:', parseError.message);
+    console.error('[VerifyService] JSON parse error:', parseError.message);
   }
 
-  if (data && data.success === false) {
-    console.log('[VerifyService] Response indicates success is false');
-    return data;
-  }
+  // Handle explicit non-ok HTTP status codes or backend failure payloads
+  if (!response.ok || (data && data.success === false)) {
+    console.warn('[VerifyService] Error response detected. Status:', status, 'Data:', data);
+    const errorType = String(status || data?.errorType || 'default');
+    const devDetails = data?.message || data?.error || rawText.slice(0, 300) || `HTTP ${status} ${response.statusText}`;
 
-  if (!response.ok) {
-    console.log('[VerifyService] Response status not ok:', response.status);
+    let message = data?.message;
+    if (!message) {
+      if (status === 503) {
+        message = responseLanguage === 'hi'
+          ? 'एआई सेवा पर इस समय अत्यधिक ट्रैफ़िक है। कृपया कुछ क्षणों बाद पुनः प्रयास करें।'
+          : 'The AI service is currently experiencing high demand. Please try again in a few moments.';
+      } else if (status === 403) {
+        message = responseLanguage === 'hi'
+          ? 'एआई कुंजी अमान्य या अनुपलब्ध होने के कारण अनुरोध अस्वीकृत कर दिया गया।'
+          : 'The AI service rejected the request because the API key is invalid or unavailable.';
+      } else if (status === 401) {
+        message = responseLanguage === 'hi'
+          ? 'प्रमाणीकरण समाप्त या अमान्य है। कृपया पुनः साइन इन करें।'
+          : 'Authentication expired or invalid. Please sign in again.';
+      } else if (status === 429) {
+        message = responseLanguage === 'hi'
+          ? 'अत्यधिक अनुरोध। कृपया पुनः प्रयास करने से पहले कुछ क्षण प्रतीक्षा करें।'
+          : 'Too many requests. Please wait a moment before trying again.';
+      } else if (status === 504) {
+        message = responseLanguage === 'hi'
+          ? 'सत्यापन अनुरोध पूरा होने में बहुत अधिक समय लगा।'
+          : 'The verification request took too long to complete.';
+      } else if (status >= 500) {
+        message = responseLanguage === 'hi'
+          ? 'अनुरोध संसाधित करते समय सर्वर में आंतरिक त्रुटि हुई।'
+          : 'The server encountered an internal error while processing the request.';
+      } else {
+        message = responseLanguage === 'hi'
+          ? 'इस दावे की पुष्टि करते समय कुछ अप्रत्याशित त्रुटि हुई।'
+          : 'Something unexpected happened while verifying this claim.';
+      }
+    }
+
     return {
       success: false,
-      errorType: response.status === 429 ? 'quota' : response.status === 504 ? 'timeout' : 'backend',
-      message: data?.message || `Server error (${response.status})`,
-      evidenceCollected: data?.evidenceCollected || false
+      errorType,
+      statusCode: status || 500,
+      message,
+      evidenceCollected: data?.evidenceCollected || false,
+      devDetails
     };
   }
 
@@ -119,18 +187,18 @@ export async function verifySelectedText(text, responseLanguage = 'en', token = 
     console.log('[VerifyService] No parsed data available');
     return {
       success: false,
-      errorType: 'invalid_response',
-      message: 'Invalid JSON response from server.',
-      evidenceCollected: false
+      errorType: '502',
+      statusCode: 502,
+      message: responseLanguage === 'hi'
+        ? 'सर्वर से अमान्य प्रतिक्रिया प्राप्त हुई।'
+        : 'Received an invalid response from the upstream server.',
+      evidenceCollected: false,
+      devDetails: 'Invalid JSON payload returned by backend'
     };
   }
 
-  // Normalize the response into a stable shape the popup always relies on.
-  // The backend returns many fields; we extract only what the popup needs.
-  console.log('[VerifyService] Normalizing result');
-  const normalized = normalizeResult(data, trimmed);
-  console.log('[VerifyService] Normalized result:', JSON.stringify(normalized));
-  return normalized;
+  console.log('[VerifyService] Normalizing successful result');
+  return normalizeResult(data, trimmed);
 }
 
 /**
