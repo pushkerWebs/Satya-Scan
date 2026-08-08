@@ -12,9 +12,11 @@ function getTrustColor(score) {
   return '#C62828';
 }
 
-function getVerdictSummary(claims = [], inputType, imageVerdict) {
+function getVerdictSummary(claims = [], inputType, imageVerdict, visualAuthenticity, ocrClaimVerification) {
   if (inputType === 'image') {
-    return imageVerdict?.replace(/_/g, ' ') || 'Image analysis';
+    const vStatus = visualAuthenticity?.status || imageVerdict?.replace(/_/g, ' ') || 'Visual analysis';
+    const oVerdict = ocrClaimVerification?.verdict ? ` · Text: ${ocrClaimVerification.verdict}` : '';
+    return `Image: ${vStatus}${oVerdict}`;
   }
   const counts = { True: 0, Supported: 0, False: 0, Contradicted: 0, Unverified: 0, Misleading: 0 };
   claims.forEach((c) => { if (c.verdict in counts) counts[c.verdict]++; });
@@ -194,7 +196,7 @@ export default function HistoryPage() {
                     </p>
 
                     <p className="text-[#5C6650]/70 text-xs">
-                      {getVerdictSummary(check.claims, check.inputType, check.imageVerdict)}
+                      {getVerdictSummary(check.claims, check.inputType, check.imageVerdict, check.visualAuthenticity, check.ocrClaimVerification)}
                     </p>
                   </div>
 

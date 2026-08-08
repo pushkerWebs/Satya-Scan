@@ -41,6 +41,16 @@ function parseGeminiJSON(text) {
   try {
     return JSON.parse(cleaned);
   } catch (err) {
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      try {
+        const jsonSubstr = cleaned.substring(firstBrace, lastBrace + 1);
+        return JSON.parse(jsonSubstr);
+      } catch (nestedErr) {
+        // Continue to throw outer error
+      }
+    }
     throw new Error(`Failed to parse Gemini response as JSON: ${err.message}\nRaw: ${text.slice(0, 500)}`);
   }
 }

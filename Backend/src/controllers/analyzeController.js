@@ -200,15 +200,27 @@ function buildCheckDocument(userId, inputType, content, result) {
   // Image
   return {
     ...base,
-    originalText: result._originalFilename || 'Image upload',
-    trustScore: result.trustScore,
-    imageVerdict: result.verdict,
-    imageConfidence: result.confidence,
+    originalText: result.ocrClaimVerification?.extractedText || result._originalFilename || 'Image upload',
+    visualAuthenticity: result.visualAuthenticity || {
+      status: result.status || 'Uncertain',
+      confidence: result.confidence || 0,
+      evidence: result.evidence || [],
+    },
+    ocrClaimVerification: result.ocrClaimVerification || {
+      hasText: false,
+      extractedText: null,
+      verdict: null,
+      confidence: null,
+      reason: null,
+      sources: [],
+    },
+    imageVerdict: result.visualAuthenticity?.status || result.verdict,
+    imageConfidence: result.visualAuthenticity?.confidence || result.confidence,
     aiProbability: result.aiProbability,
     deepfakeProbability: result.deepfakeProbability,
     manipulationProbability: result.manipulationProbability,
     metadataIntegrity: result.metadataIntegrity,
-    findings: result.findings,
+    findings: result.findings || result.visualAuthenticity?.evidence || [],
     imageSummary: result.summary,
   };
 }

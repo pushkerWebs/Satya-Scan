@@ -67,12 +67,21 @@ const checkSchema = new mongoose.Schema(
     metaDescription: String,
 
     // ─── Image verification fields ───────────────────────────
+    visualAuthenticity: {
+      status: String,
+      confidence: { type: Number, min: 0, max: 100 },
+      evidence: [String],
+    },
+    ocrClaimVerification: {
+      hasText: { type: Boolean, default: false },
+      extractedText: String,
+      verdict: String,
+      confidence: { type: Number, min: 0, max: 100 },
+      reason: String,
+      sources: [sourceSchema],
+    },
     imageVerdict: {
       type: String,
-      enum: [
-        'AUTHENTIC', 'LIKELY_AUTHENTIC', 'AI_GENERATED',
-        'LIKELY_AI_GENERATED', 'DEEPFAKE', 'MANIPULATED', 'INCONCLUSIVE',
-      ],
     },
     aiProbability: { type: Number, min: 0, max: 100 },
     deepfakeProbability: { type: Number, min: 0, max: 100 },

@@ -9,30 +9,31 @@ import {
   TrendingUp, Clock, Globe, Award, Zap
 } from 'lucide-react';
 import ShareModal from '../components/ShareModal';
+import ImageDualAnalysis from '../components/ImageDualAnalysis';
 import { getHistoryItem } from '../api/api';
 import { useTranslation } from '../context/LanguageContext';
 
 // ─── Verdict config ────────────────────────────────────────────────────────────
 
 const VERDICT_CONFIG = {
-  Supported:        { color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.12)', border: 'rgba(46, 125, 50, 0.22)', Icon: CircleCheckBig,  label: 'Verified',           microcopy: 'Multiple trusted sources independently support this claim.' },
-  True:             { color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.12)', border: 'rgba(46, 125, 50, 0.22)', Icon: CircleCheckBig,  label: 'Verified',           microcopy: 'Multiple trusted sources independently support this claim.' },
-  Contradicted:     { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX,         label: 'False',              microcopy: 'Reliable evidence from independent sources contradicts this claim.' },
-  False:            { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX,         label: 'False',              microcopy: 'Reliable evidence from independent sources contradicts this claim.' },
-  Misleading:       { color: '#E65100', bg: 'rgba(230, 81, 0, 0.12)', border: 'rgba(230, 81, 0, 0.22)', Icon: TriangleAlert,   label: 'Misleading',         microcopy: 'The claim mixes factual information with misleading context or omits key facts.' },
-  PARTIALLY_TRUE:   { color: '#F57F17', bg: 'rgba(245, 127, 23, 0.12)', border: 'rgba(245, 127, 23, 0.22)', Icon: BadgeCheck,      label: 'Partially Verified', microcopy: 'Some parts are supported by evidence, but important context is missing.' },
-  Unverified:       { color: '#4E5D4C', bg: 'rgba(78, 93, 76, 0.12)', border: 'rgba(78, 93, 76, 0.22)', Icon: ShieldQuestion,  label: "Couldn't Verify",    microcopy: 'There is not enough reliable evidence from trusted sources to verify this claim.' },
+  Supported: { color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.12)', border: 'rgba(46, 125, 50, 0.22)', Icon: CircleCheckBig, label: 'Verified', microcopy: 'Multiple trusted sources independently support this claim.' },
+  True: { color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.12)', border: 'rgba(46, 125, 50, 0.22)', Icon: CircleCheckBig, label: 'Verified', microcopy: 'Multiple trusted sources independently support this claim.' },
+  Contradicted: { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX, label: 'False', microcopy: 'Reliable evidence from independent sources contradicts this claim.' },
+  False: { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX, label: 'False', microcopy: 'Reliable evidence from independent sources contradicts this claim.' },
+  Misleading: { color: '#E65100', bg: 'rgba(230, 81, 0, 0.12)', border: 'rgba(230, 81, 0, 0.22)', Icon: TriangleAlert, label: 'Misleading', microcopy: 'The claim mixes factual information with misleading context or omits key facts.' },
+  PARTIALLY_TRUE: { color: '#F57F17', bg: 'rgba(245, 127, 23, 0.12)', border: 'rgba(245, 127, 23, 0.22)', Icon: BadgeCheck, label: 'Partially Verified', microcopy: 'Some parts are supported by evidence, but important context is missing.' },
+  Unverified: { color: '#4E5D4C', bg: 'rgba(78, 93, 76, 0.12)', border: 'rgba(78, 93, 76, 0.22)', Icon: ShieldQuestion, label: "Couldn't Verify", microcopy: 'There is not enough reliable evidence from trusted sources to verify this claim.' },
   // URL page-type verdicts
-  Informational:    { color: '#4E5D4C', bg: 'rgba(78, 93, 76, 0.12)', border: 'rgba(78, 93, 76, 0.22)', Icon: Info,            label: 'Official Information', microcopy: 'This is authoritative information from an official or reference source. It is presented as established information, not evaluated as true or false.' },
-  Opinion:          { color: '#5E35B1', bg: 'rgba(94, 53, 177, 0.12)', border: 'rgba(94, 53, 177, 0.22)', Icon: FileText,        label: 'Opinion Content',    microcopy: 'This page contains opinion or editorial content. Factual statements within have been verified separately where possible.' },
+  Informational: { color: '#4E5D4C', bg: 'rgba(78, 93, 76, 0.12)', border: 'rgba(78, 93, 76, 0.22)', Icon: Info, label: 'Official Information', microcopy: 'This is authoritative information from an official or reference source. It is presented as established information, not evaluated as true or false.' },
+  Opinion: { color: '#5E35B1', bg: 'rgba(94, 53, 177, 0.12)', border: 'rgba(94, 53, 177, 0.22)', Icon: FileText, label: 'Opinion Content', microcopy: 'This page contains opinion or editorial content. Factual statements within have been verified separately where possible.' },
   // Image verdicts
-  AUTHENTIC:           { color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.12)', border: 'rgba(46, 125, 50, 0.22)', Icon: CircleCheckBig, label: 'Authentic',          microcopy: 'This image appears to be genuine and unmodified.' },
-  LIKELY_AUTHENTIC:    { color: '#00796B', bg: 'rgba(0, 121, 107, 0.12)', border: 'rgba(0, 121, 107, 0.22)', Icon: BadgeCheck,     label: 'Likely Authentic',   microcopy: 'This image is probably genuine, with no major signs of manipulation.' },
-  AI_GENERATED:        { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX,        label: 'AI Generated',       microcopy: 'This image was likely created entirely by artificial intelligence.' },
-  LIKELY_AI_GENERATED: { color: '#E65100', bg: 'rgba(230, 81, 0, 0.12)', border: 'rgba(230, 81, 0, 0.22)', Icon: TriangleAlert,  label: 'Likely AI Generated',microcopy: 'This image shows strong signs of being AI-generated.' },
-  DEEPFAKE:            { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX,        label: 'Deepfake Detected',  microcopy: 'This image shows clear signs of deepfake manipulation.' },
-  MANIPULATED:         { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX,        label: 'Manipulated',        microcopy: 'This image has been digitally altered or edited.' },
-  INCONCLUSIVE:        { color: '#4E5D4C', bg: 'rgba(78, 93, 76, 0.12)', border: 'rgba(78, 93, 76, 0.22)', Icon: ShieldQuestion, label: 'Inconclusive',       microcopy: 'The analysis could not reach a definitive conclusion.' },
+  AUTHENTIC: { color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.12)', border: 'rgba(46, 125, 50, 0.22)', Icon: CircleCheckBig, label: 'Authentic', microcopy: 'This image appears to be genuine and unmodified.' },
+  LIKELY_AUTHENTIC: { color: '#00796B', bg: 'rgba(0, 121, 107, 0.12)', border: 'rgba(0, 121, 107, 0.22)', Icon: BadgeCheck, label: 'Likely Authentic', microcopy: 'This image is probably genuine, with no major signs of manipulation.' },
+  AI_GENERATED: { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX, label: 'AI Generated', microcopy: 'This image was likely created entirely by artificial intelligence.' },
+  LIKELY_AI_GENERATED: { color: '#E65100', bg: 'rgba(230, 81, 0, 0.12)', border: 'rgba(230, 81, 0, 0.22)', Icon: TriangleAlert, label: 'Likely AI Generated', microcopy: 'This image shows strong signs of being AI-generated.' },
+  DEEPFAKE: { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX, label: 'Deepfake Detected', microcopy: 'This image shows clear signs of deepfake manipulation.' },
+  MANIPULATED: { color: '#C62828', bg: 'rgba(198, 40, 40, 0.12)', border: 'rgba(198, 40, 40, 0.22)', Icon: CircleX, label: 'Manipulated', microcopy: 'This image has been digitally altered or edited.' },
+  INCONCLUSIVE: { color: '#4E5D4C', bg: 'rgba(78, 93, 76, 0.12)', border: 'rgba(78, 93, 76, 0.22)', Icon: ShieldQuestion, label: 'Inconclusive', microcopy: 'The analysis could not reach a definitive conclusion.' },
 };
 
 function getVerdict(v, t) {
@@ -245,10 +246,10 @@ function AnimatedBar({ value, color, height = 6 }) {
 // ─── Page Type Banner (shown for non-news URL inputs) ─────────────────────────
 
 const PAGE_TYPE_CONFIG = {
-  official:     { Icon: Award,     color: '#2E7D32', bg: 'rgba(46,125,50,0.06)',  border: 'rgba(46,125,50,0.2)',  reportLabel: 'Official Information Report' },
-  reference:    { Icon: Info,      color: '#1E88E5', bg: 'rgba(30,136,229,0.06)',  border: 'rgba(30,136,229,0.2)',  reportLabel: 'Reference Information Report' },
-  opinion:      { Icon: FileText,  color: '#5E35B1', bg: 'rgba(94,53,177,0.06)', border: 'rgba(94,53,177,0.2)', reportLabel: 'Opinion Content Analysis' },
-  social_media: { Icon: Globe,     color: '#D87D0A', bg: 'rgba(216,125,10,0.06)', border: 'rgba(216,125,10,0.2)', reportLabel: 'Social Media Fact-Check' },
+  official: { Icon: Award, color: '#2E7D32', bg: 'rgba(46,125,50,0.06)', border: 'rgba(46,125,50,0.2)', reportLabel: 'Official Information Report' },
+  reference: { Icon: Info, color: '#1E88E5', bg: 'rgba(30,136,229,0.06)', border: 'rgba(30,136,229,0.2)', reportLabel: 'Reference Information Report' },
+  opinion: { Icon: FileText, color: '#5E35B1', bg: 'rgba(94,53,177,0.06)', border: 'rgba(94,53,177,0.2)', reportLabel: 'Opinion Content Analysis' },
+  social_media: { Icon: Globe, color: '#D87D0A', bg: 'rgba(216,125,10,0.06)', border: 'rgba(216,125,10,0.2)', reportLabel: 'Social Media Fact-Check' },
 };
 
 function PageTypeBanner({ pageType, pageTypeLabel, pageTypeDescription }) {
@@ -295,13 +296,13 @@ function SectionHeading({ icon: Icon, children, iconColor, badge }) {
 // ─── How We Verified — Transparent Pipeline ───────────────────────────────────
 
 const PIPELINE_STEPS = [
-  { icon: FileText,   labelKey: 'results.pipeline.claimSubmitted',           fallbackLabel: 'Claim Submitted',           descKey: 'results.pipeline.claimSubmittedDesc',           fallbackDesc: 'Your input is received and parsed for verifiable claims' },
-  { icon: Search,     labelKey: 'results.pipeline.claimsExtracted',          fallbackLabel: 'Claims Extracted',          descKey: 'results.pipeline.claimsExtractedDesc',          fallbackDesc: 'Individual factual assertions are identified and isolated' },
-  { icon: Globe,      labelKey: 'results.pipeline.sourcesRetrieved',         fallbackLabel: 'Trusted Sources Retrieved', descKey: 'results.pipeline.sourcesRetrievedDesc',         fallbackDesc: 'Relevant articles pulled from verified publication databases' },
-  { icon: GitCompare, labelKey: 'results.pipeline.crossSource',              fallbackLabel: 'Cross-Source Comparison',    descKey: 'results.pipeline.crossSourceDesc',              fallbackDesc: 'Claims matched against retrieved evidence across all sources' },
-  { icon: AlertTriangle, labelKey: 'results.pipeline.contradictions',        fallbackLabel: 'Contradictions Detected',    descKey: 'results.pipeline.contradictionsDesc',           fallbackDesc: 'Conflicting reports identified and flagged for review' },
-  { icon: Scale,      labelKey: 'results.pipeline.evidenceWeighted',         fallbackLabel: 'Evidence Weighted',         descKey: 'results.pipeline.evidenceWeightedDesc',         fallbackDesc: 'Sources scored by publisher trust tier and publication recency' },
-  { icon: ShieldCheck,labelKey: 'results.pipeline.verdictIssued',            fallbackLabel: 'Final Verdict Issued',       descKey: 'results.pipeline.verdictIssuedDesc',            fallbackDesc: 'Independent conclusion drawn from the full evidence body' },
+  { icon: FileText, labelKey: 'results.pipeline.claimSubmitted', fallbackLabel: 'Claim Submitted', descKey: 'results.pipeline.claimSubmittedDesc', fallbackDesc: 'Your input is received and parsed for verifiable claims' },
+  { icon: Search, labelKey: 'results.pipeline.claimsExtracted', fallbackLabel: 'Claims Extracted', descKey: 'results.pipeline.claimsExtractedDesc', fallbackDesc: 'Individual factual assertions are identified and isolated' },
+  { icon: Globe, labelKey: 'results.pipeline.sourcesRetrieved', fallbackLabel: 'Trusted Sources Retrieved', descKey: 'results.pipeline.sourcesRetrievedDesc', fallbackDesc: 'Relevant articles pulled from verified publication databases' },
+  { icon: GitCompare, labelKey: 'results.pipeline.crossSource', fallbackLabel: 'Cross-Source Comparison', descKey: 'results.pipeline.crossSourceDesc', fallbackDesc: 'Claims matched against retrieved evidence across all sources' },
+  { icon: AlertTriangle, labelKey: 'results.pipeline.contradictions', fallbackLabel: 'Contradictions Detected', descKey: 'results.pipeline.contradictionsDesc', fallbackDesc: 'Conflicting reports identified and flagged for review' },
+  { icon: Scale, labelKey: 'results.pipeline.evidenceWeighted', fallbackLabel: 'Evidence Weighted', descKey: 'results.pipeline.evidenceWeightedDesc', fallbackDesc: 'Sources scored by publisher trust tier and publication recency' },
+  { icon: ShieldCheck, labelKey: 'results.pipeline.verdictIssued', fallbackLabel: 'Final Verdict Issued', descKey: 'results.pipeline.verdictIssuedDesc', fallbackDesc: 'Independent conclusion drawn from the full evidence body' },
 ];
 
 function HowWeVerified() {
@@ -973,9 +974,9 @@ export default function ResultsPage() {
   const reliabilityColor = getReliabilityColor(displayScore);
 
   // Stats
-  const supported    = claims.filter(c => ['Supported', 'True'].includes(c.verdict)).length;
+  const supported = claims.filter(c => ['Supported', 'True'].includes(c.verdict)).length;
   const contradicted = claims.filter(c => ['Contradicted', 'False', 'Misleading'].includes(c.verdict)).length;
-  const unverified   = claims.length - supported - contradicted;
+  const unverified = claims.length - supported - contradicted;
 
   // Summary sentence
   const summaryBullets = splitReasoning(aiReasoning || imgSummary || '');
@@ -1055,337 +1056,259 @@ export default function ResultsPage() {
           />
         )}
 
-        {/* ── HERO CARD ─────────────────────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="rounded-2xl overflow-hidden bg-[#E4DFB5]"
-          style={{ border: `1px solid ${cfg.border}` }}
-        >
-          {/* Top status bar */}
-          <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, ${cfg.color}80, ${cfg.color}20)` }} />
+        {/* ── IMAGE DUAL-CARD ARCHITECTURE (when inputType === 'image') ───── */}
+        {isImage ? (
+          <ImageDualAnalysis result={result} />
+        ) : (
+          <>
+            {/* ── HERO CARD ─────────────────────────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="rounded-2xl overflow-hidden bg-[#E4DFB5]"
+              style={{ border: `1px solid ${cfg.border}` }}
+            >
+              {/* Top status bar */}
+              <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, ${cfg.color}80, ${cfg.color}20)` }} />
 
-          <div className="p-6">
-            {/* Verdict row */}
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                {/* Label above */}
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#5C6650]">
-                    {isImage ? t('results.imageAuthenticityReport', 'Image Authenticity Report')
-                    : inputType === 'url'
-                      ? (PAGE_TYPE_CONFIG[pageType] ? t(PAGE_TYPE_CONFIG[pageType].reportLabelKey, pageTypeLabel) : t('results.urlVerificationReport', 'URL Verification Report'))
-                      : t('results.factCheckReport', 'Fact-Check Report')}
-                  </span>
-                  {detectedLanguage && detectedLanguage !== 'unknown' && detectedLanguage !== 'en' && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[#768E56]/15 text-[#768E56] border border-[#768E56]/25">
-                      {detectedLanguage.toUpperCase()}
-                    </span>
-                  )}
-                </div>
-
-                {/* Main verdict */}
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 rounded-xl" style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
-                    <VerdictIcon size={22} style={{ color: cfg.color }} strokeWidth={2} />
-                  </div>
-                  <div>
-                    <h1 className="text-3xl font-black leading-none tracking-tight" style={{ color: cfg.color }}>
-                      {cfg.label}
-                    </h1>
-                  </div>
-                </div>
-
-                {/* Microcopy */}
-                <p className="text-sm text-[#5C6650] leading-relaxed mb-4 max-w-lg">{cfg.microcopy}</p>
-
-                {/* Verification Summary */}
-                {firstSummary && (
-                  <div className="rounded-xl p-4 bg-[#FBE8CE] border border-[#C3CC9B]">
-                    <div className="flex items-start gap-2.5">
-                      <ShieldCheck size={13} style={{ color: '#768E56', marginTop: 3, flexShrink: 0 }} />
-                      <p className="text-sm text-[#232B1B] leading-relaxed">
-                        <span className="font-bold text-[#232B1B]">{t('results.verificationSummary', 'Verification Summary')} — </span>
-                        {firstSummary}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Score ring */}
-              <div className="flex flex-col items-center gap-1.5 shrink-0">
-                <ReliabilityRing score={displayScore} />
-                <p className="text-[10px] text-[#5C6650] text-center leading-tight">
-                  {t('results.overallReliability', 'Overall\nReliability').split('\n').map((p, idx) => (
-                    <span key={idx}>{p}{idx === 0 && <br />}</span>
-                  ))}
-                </p>
-              </div>
-            </div>
-
-            {/* Claim stat pills */}
-            {!isImage && claims.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-[#C3CC9B]">
-                {supported > 0 && (
-                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#2E7D32]/10 text-[#2E7D32] border border-[#2E7D32]/20">
-                    <CircleCheckBig size={11} strokeWidth={2.5} />
-                    {supported} {t('results.evidenceSupported', 'evidence-supported')}
-                  </span>
-                )}
-                {contradicted > 0 && (
-                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#C62828]/10 text-[#C62828] border border-[#C62828]/20">
-                    <CircleX size={11} strokeWidth={2.5} />
-                    {contradicted} {t('results.disputedBySources', 'disputed by sources')}
-                  </span>
-                )}
-                {unverified > 0 && (
-                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#5C6650]/10 text-[#5C6650] border border-[#5C6650]/20">
-                    <ShieldQuestion size={11} strokeWidth={2} />
-                    {unverified} {t('results.insufficientEvidence', 'insufficient evidence')}
-                  </span>
-                )}
-                {totalSourceCount > 0 && (
-                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#768E56]/10 text-[#768E56] border border-[#768E56]/20">
-                    <Globe size={11} strokeWidth={2} />
-                    {totalSourceCount} {t('results.sourcesChecked', 'sources checked')}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        </motion.div>
-
-        {/* ── CAN I TRUST THIS? ──────────────────────────────────────────────── */}
-        {!isImage && rawVerdict !== 'Informational' && (
-          <TrustCard
-            score={displayScore}
-            verdict={rawVerdict}
-            trustedCount={allTrustedCount}
-            totalSources={totalSourceCount}
-          />
-        )}
-
-        {/* ── MISSING CONTEXT ────────────────────────────────────────────────── */}
-        {showMissingContext && (
-          <MissingContext verdict={rawVerdict} reasoning={aiReasoning} />
-        )}
-
-        {/* ── KEY FINDINGS ──────────────────────────────────────────────────── */}
-        {!isImage && keyFindings && keyFindings.length > 0 && (
-          <KeyFindings keyFindings={keyFindings} />
-        )}
-
-        {/* ── VERIFIED FACTS ────────────────────────────────────────────────── */}
-        {!isImage && verifiedFacts && verifiedFacts.length > 0 && (
-          <VerifiedFacts verifiedFacts={verifiedFacts} />
-        )}
-
-        {/* ── HOW WE VERIFIED ───────────────────────────────────────────────── */}
-        <HowWeVerified />
-
-        {/* ── VERIFICATION DETAILS ─────────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-          className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]"
-        >
-          <SectionHeading icon={TrendingUp}>{t('results.evidenceAnalysisMetrics', 'Evidence Analysis Metrics')}</SectionHeading>
-
-          {isImage ? (
-            <div className="space-y-4">
-              {[
-                { label: t('results.aiGeneratedProbability', 'AI Generated Probability'), value: aiProbability ?? 0, inverse: true },
-                { label: t('results.deepfakeProbability', 'Deepfake Probability'), value: deepfakeProbability ?? 0, inverse: true },
-                { label: t('results.manipulationProbability', 'Manipulation Probability'), value: manipulationProbability ?? 0, inverse: true },
-              ].map(({ label, value, inverse }) => {
-                const color = inverse ? (value > 50 ? '#C62828' : '#2E7D32') : getReliabilityColor(value);
-                return (
-                  <div key={label}>
-                    <div className="flex items-center justify-between text-xs mb-2">
-                      <span className="text-[#5C6650] font-bold">{label}</span>
-                      <span className="font-bold" style={{ color }}>
-                        {value > 70 ? t('results.high', 'High') : value > 40 ? t('results.moderate', 'Moderate') : t('results.low', 'Low')} ({value}%)
+              <div className="p-6">
+                {/* Verdict row */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    {/* Label above */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#5C6650]">
+                        {inputType === 'url'
+                          ? (PAGE_TYPE_CONFIG[pageType] ? t(PAGE_TYPE_CONFIG[pageType].reportLabelKey, pageTypeLabel) : t('results.urlVerificationReport', 'URL Verification Report'))
+                          : t('results.factCheckReport', 'Fact-Check Report')}
                       </span>
+                      {detectedLanguage && detectedLanguage !== 'unknown' && detectedLanguage !== 'en' && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[#768E56]/15 text-[#768E56] border border-[#768E56]/25">
+                          {detectedLanguage.toUpperCase()}
+                        </span>
+                      )}
                     </div>
-                    <AnimatedBar value={value} color={color} />
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Source credibility bar */}
-              <div>
-                <div className="flex items-center justify-between text-xs mb-2">
-                  <span className="text-[#5C6650] font-bold">{t('results.sourceCredibility', 'Source Credibility')}</span>
-                  <span className="font-bold" style={{ color: getReliabilityColor(sourceCredibility ?? 0) }}>
-                    {evidenceStrength} ({Math.round(sourceCredibility ?? 0)}%)
-                  </span>
-                </div>
-                <AnimatedBar value={sourceCredibility ?? 0} color={getReliabilityColor(sourceCredibility ?? 0)} />
-                <p className="text-[10px] text-[#5C6650]/80 mt-1">
-                  {t('results.sourceCredibilityDesc', 'Based on publisher trust tier and editorial standards of retrieved sources')}
-                </p>
-              </div>
 
-              {/* Overall confidence */}
-              <ConfidenceExplainer
+                    {/* Main verdict */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 rounded-xl" style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
+                        <VerdictIcon size={22} style={{ color: cfg.color }} strokeWidth={2} />
+                      </div>
+                      <div>
+                        <h1 className="text-3xl font-black leading-none tracking-tight" style={{ color: cfg.color }}>
+                          {cfg.label}
+                        </h1>
+                      </div>
+                    </div>
+
+                    {/* Microcopy */}
+                    <p className="text-sm text-[#5C6650] leading-relaxed mb-4 max-w-lg">{cfg.microcopy}</p>
+
+                    {/* Verification Summary */}
+                    {firstSummary && (
+                      <div className="rounded-xl p-4 bg-[#FBE8CE] border border-[#C3CC9B]">
+                        <div className="flex items-start gap-2.5">
+                          <ShieldCheck size={13} style={{ color: '#768E56', marginTop: 3, flexShrink: 0 }} />
+                          <p className="text-sm text-[#232B1B] leading-relaxed">
+                            <span className="font-bold text-[#232B1B]">{t('results.verificationSummary', 'Verification Summary')} — </span>
+                            {firstSummary}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Score ring */}
+                  <div className="flex flex-col items-center gap-1.5 shrink-0">
+                    <ReliabilityRing score={displayScore} />
+                    <p className="text-[10px] text-[#5C6650] text-center leading-tight">
+                      {t('results.overallReliability', 'Overall\nReliability').split('\n').map((p, idx) => (
+                        <span key={idx}>{p}{idx === 0 && <br />}</span>
+                      ))}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Claim stat pills */}
+                {claims.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-[#C3CC9B]">
+                    {supported > 0 && (
+                      <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#2E7D32]/10 text-[#2E7D32] border border-[#2E7D32]/20">
+                        <CircleCheckBig size={11} strokeWidth={2.5} />
+                        {supported} {t('results.evidenceSupported', 'evidence-supported')}
+                      </span>
+                    )}
+                    {contradicted > 0 && (
+                      <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#C62828]/10 text-[#C62828] border border-[#C62828]/20">
+                        <CircleX size={11} strokeWidth={2.5} />
+                        {contradicted} {t('results.disputedBySources', 'disputed by sources')}
+                      </span>
+                    )}
+                    {unverified > 0 && (
+                      <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#5C6650]/10 text-[#5C6650] border border-[#5C6650]/20">
+                        <ShieldQuestion size={11} strokeWidth={2} />
+                        {unverified} {t('results.insufficientEvidence', 'insufficient evidence')}
+                      </span>
+                    )}
+                    {totalSourceCount > 0 && (
+                      <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#768E56]/10 text-[#768E56] border border-[#768E56]/20">
+                        <Globe size={11} strokeWidth={2} />
+                        {totalSourceCount} {t('results.sourcesChecked', 'sources checked')}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+
+            {/* ── CAN I TRUST THIS? ──────────────────────────────────────────────── */}
+            {rawVerdict !== 'Informational' && (
+              <TrustCard
                 score={displayScore}
                 verdict={rawVerdict}
                 trustedCount={allTrustedCount}
                 totalSources={totalSourceCount}
               />
+            )}
 
-              {/* Trusted source ratio */}
-              {totalSourceCount > 0 && (
-                <div className="flex items-center gap-3 text-xs text-[#5C6650]">
-                  <ShieldCheck size={12} style={{ color: '#768E56' }} />
-                  <span>
-                    {t('results.sourcesFromVerified', '{{count}} of {{total}} sources are from verified publishers')
-                      .replace('{{count}}', allTrustedCount)
-                      .replace('{{total}}', totalSourceCount)}
-                  </span>
+            {/* ── MISSING CONTEXT ────────────────────────────────────────────────── */}
+            {showMissingContext && (
+              <MissingContext verdict={rawVerdict} reasoning={aiReasoning} />
+            )}
+
+            {/* ── KEY FINDINGS ──────────────────────────────────────────────────── */}
+            {keyFindings && keyFindings.length > 0 && (
+              <KeyFindings keyFindings={keyFindings} />
+            )}
+
+            {/* ── VERIFIED FACTS ────────────────────────────────────────────────── */}
+            {verifiedFacts && verifiedFacts.length > 0 && (
+              <VerifiedFacts verifiedFacts={verifiedFacts} />
+            )}
+
+            {/* ── HOW WE VERIFIED ───────────────────────────────────────────────── */}
+            <HowWeVerified />
+
+            {/* ── VERIFICATION DETAILS ─────────────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]"
+            >
+              <SectionHeading icon={TrendingUp}>{t('results.evidenceAnalysisMetrics', 'Evidence Analysis Metrics')}</SectionHeading>
+
+              <div className="space-y-4">
+                {/* Source credibility bar */}
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span className="text-[#5C6650] font-bold">{t('results.sourceCredibility', 'Source Credibility')}</span>
+                    <span className="font-bold" style={{ color: getReliabilityColor(sourceCredibility ?? 0) }}>
+                      {evidenceStrength} ({Math.round(sourceCredibility ?? 0)}%)
+                    </span>
+                  </div>
+                  <AnimatedBar value={sourceCredibility ?? 0} color={getReliabilityColor(sourceCredibility ?? 0)} />
+                  <p className="text-[10px] text-[#5C6650]/80 mt-1">
+                    {t('results.sourceCredibilityDesc', 'Based on publisher trust tier and editorial standards of retrieved sources')}
+                  </p>
                 </div>
-              )}
-            </div>
-          )}
-        </motion.div>
 
-        {/* ── IMAGE METADATA ────────────────────────────────────────────────── */}
-        {isImage && (
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.18 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-4"
-          >
-            {/* Metadata status */}
-            <div className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]">
-              <SectionHeading icon={ShieldCheck}>{t('results.metadataStatus', 'Metadata Status')}</SectionHeading>
-              {(() => {
-                const intact = metadataIntegrity === 'INTACT';
-                const stripped = metadataIntegrity === 'STRIPPED';
-                const mColor = intact ? '#2E7D32' : stripped ? '#D87D0A' : '#C62828';
-                const mLabel = intact ? t('results.metadataOriginal', 'Original & Intact') : stripped ? t('results.metadataRemoved', 'Metadata Removed') : t('results.metadataSuspicious', 'Suspicious');
-                return (
-                  <>
-                    <p className="text-lg font-bold mb-1.5" style={{ color: mColor }}>{mLabel}</p>
-                    <p className="text-xs text-[#5C6650] leading-relaxed">
-                      {intact
-                        ? t('results.metadataOriginalDesc', 'The image retains its original camera data — a strong sign of authenticity.')
-                        : stripped
-                        ? t('results.metadataRemovedDesc', 'Metadata was removed. Common on social media, but can sometimes indicate editing.')
-                        : t('results.metadataSuspiciousDesc', 'Modified metadata was detected, which may indicate tampering.')}
-                    </p>
-                  </>
-                );
-              })()}
-            </div>
+                {/* Overall confidence */}
+                <ConfidenceExplainer
+                  score={displayScore}
+                  verdict={rawVerdict}
+                  trustedCount={allTrustedCount}
+                  totalSources={totalSourceCount}
+                />
 
-            {/* Findings */}
-            {findings.length > 0 && (
-              <div className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]">
-                <SectionHeading icon={FileText}>{t('results.whatWeFound', 'What We Found')}</SectionHeading>
-                <ul className="space-y-2">
-                  {findings.slice(0, 5).map((f, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-[#232B1B] leading-relaxed">
-                      <span style={{ color: '#768E56', marginTop: 4, fontSize: 10, flexShrink: 0 }}>✓</span>
-                      <span>{f}</span>
+                {/* Trusted source ratio */}
+                {totalSourceCount > 0 && (
+                  <div className="flex items-center gap-3 text-xs text-[#5C6650]">
+                    <ShieldCheck size={12} style={{ color: '#768E56' }} />
+                    <span>
+                      {t('results.sourcesFromVerified', '{{count}} of {{total}} sources are from verified publishers')
+                        .replace('{{count}}', allTrustedCount)
+                        .replace('{{total}}', totalSourceCount)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+
+            {/* ── WHY WE REACHED THIS CONCLUSION ───────────────────────────────── */}
+            {summaryBullets.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.18 }}
+                className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]"
+              >
+                <SectionHeading icon={FileText}>{t('results.whyWeReached', 'Why We Reached This Conclusion')}</SectionHeading>
+                <p className="text-[11px] text-[#5C6650]/60 mb-3 leading-relaxed">
+                  {t('results.whyWeReachedDesc', 'These conclusions are derived from cross-referencing evidence across independent sources — not from a single AI response.')}
+                </p>
+                <ul className="space-y-3">
+                  {summaryBullets.map((b, i) => (
+                    <li key={i} className="flex items-start gap-3 text-sm text-[#232B1B] leading-relaxed">
+                      <span className="mt-0.5 shrink-0 flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold bg-[#768E56]/20 text-[#768E56]">✓</span>
+                      <span>{b}</span>
                     </li>
                   ))}
                 </ul>
-              </div>
+              </motion.div>
             )}
-          </motion.div>
-        )}
 
-        {/* ── WHY WE REACHED THIS CONCLUSION ───────────────────────────────── */}
-        {!isImage && summaryBullets.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.18 }}
-            className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]"
-          >
-            <SectionHeading icon={FileText}>{t('results.whyWeReached', 'Why We Reached This Conclusion')}</SectionHeading>
-            <p className="text-[11px] text-[#5C6650]/60 mb-3 leading-relaxed">
-              {t('results.whyWeReachedDesc', 'These conclusions are derived from cross-referencing evidence across independent sources — not from a single AI response.')}
-            </p>
-            <ul className="space-y-3">
-              {summaryBullets.map((b, i) => (
-                <li key={i} className="flex items-start gap-3 text-sm text-[#232B1B] leading-relaxed">
-                  <span className="mt-0.5 shrink-0 flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold bg-[#768E56]/20 text-[#768E56]">✓</span>
-                  <span>{b}</span>
-                </li>
-              ))}
-            </ul>
-          </motion.div>
-        )}
+            {/* ── FINAL ASSESSMENT ─────────────────────────────────────────────── */}
+            {finalAssessment && (
+              <FinalAssessment finalAssessment={finalAssessment} />
+            )}
 
-        {/* ── FINAL ASSESSMENT ─────────────────────────────────────────────── */}
-        {!isImage && finalAssessment && (
-          <FinalAssessment finalAssessment={finalAssessment} />
-        )}
+            {/* ── TIMELINE ──────────────────────────────────────────────────────── */}
+            {timeline && (
+              <Timeline timeline={timeline} />
+            )}
 
-        {/* ── TIMELINE ──────────────────────────────────────────────────────── */}
-        {!isImage && timeline && (
-          <Timeline timeline={timeline} />
-        )}
+            {/* ── EVIDENCE CONSENSUS ────────────────────────────────────────────── */}
+            {claims.length > 0 && (
+              <EvidenceConsensus claims={claims} />
+            )}
 
-        {/* Image summary */}
-        {isImage && imgSummary && (
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.22 }}
-            className="rounded-2xl p-5 bg-[#E4DFB5] border border-[#C3CC9B]"
-          >
-            <SectionHeading icon={FileText}>{t('results.analysisSummary', 'Analysis Summary')}</SectionHeading>
-            <p className="text-sm text-[#232B1B] leading-relaxed">{imgSummary}</p>
-          </motion.div>
-        )}
+            {/* ── CLAIM BY CLAIM ────────────────────────────────────────────────── */}
+            {claims.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.22 }}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold text-[#232B1B]/80">
+                    <BadgeCheck size={15} style={{ color: '#768E56' }} strokeWidth={2} />
+                    {t('results.claimByClaimBreakdown', 'Claim-by-Claim Breakdown')}
+                  </h2>
+                  <span className="text-[11px] text-[#5C6650]/60 font-medium">{t('results.tapClaimForEvidence', 'Tap any claim to see evidence')}</span>
+                </div>
+                <div className="space-y-2.5">
+                  {claims.map((claim, i) => <ClaimCard key={i} claim={claim} index={i} />)}
+                </div>
+              </motion.div>
+            )}
 
-        {/* ── EVIDENCE CONSENSUS ────────────────────────────────────────────── */}
-        {!isImage && claims.length > 0 && (
-          <EvidenceConsensus claims={claims} />
+            {/* ── FOOTER NOTE ───────────────────────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.35 }}
+              className="rounded-2xl p-5 text-center bg-[#E4DFB5] border border-[#C3CC9B]"
+            >
+              <ShieldCheck size={18} style={{ color: '#768E56', margin: '0 auto 10px' }} strokeWidth={1.5} />
+              <p className="text-xs font-bold text-[#232B1B] mb-1">{t('results.evidenceBasedVerification', 'Evidence-Based Verification')}</p>
+              <p className="text-[11px] text-[#5C6650] leading-relaxed max-w-sm mx-auto">
+                {t('results.evidenceBasedDesc', 'SatyaScan verifies claims through independent source retrieval and cross-reference analysis. You can evaluate every source used in this report.')}
+              </p>
+            </motion.div>
+          </>
         )}
-
-        {/* ── CLAIM BY CLAIM ────────────────────────────────────────────────── */}
-        {!isImage && claims.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.22 }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-[#232B1B]/80">
-                <BadgeCheck size={15} style={{ color: '#768E56' }} strokeWidth={2} />
-                {t('results.claimByClaimBreakdown', 'Claim-by-Claim Breakdown')}
-              </h2>
-              <span className="text-[11px] text-[#5C6650]/60 font-medium">{t('results.tapClaimForEvidence', 'Tap any claim to see evidence')}</span>
-            </div>
-            <div className="space-y-2.5">
-              {claims.map((claim, i) => <ClaimCard key={i} claim={claim} index={i} />)}
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── FOOTER NOTE ───────────────────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.35 }}
-          className="rounded-2xl p-5 text-center bg-[#E4DFB5] border border-[#C3CC9B]"
-        >
-          <ShieldCheck size={18} style={{ color: '#768E56', margin: '0 auto 10px' }} strokeWidth={1.5} />
-          <p className="text-xs font-bold text-[#232B1B] mb-1">{t('results.evidenceBasedVerification', 'Evidence-Based Verification')}</p>
-          <p className="text-[11px] text-[#5C6650] leading-relaxed max-w-sm mx-auto">
-            {t('results.evidenceBasedDesc', 'SatyaScan verifies claims through independent source retrieval and cross-reference analysis. You can evaluate every source used in this report.')}
-          </p>
-        </motion.div>
 
       </div>
 
