@@ -11,9 +11,9 @@ const { resolveLanguage, getProcessingTime } = require('../utils/helpers');
  */
 function normalizeVisualStatus(rawStatus) {
   const s = String(rawStatus || '').toUpperCase().trim().replace(/[\s-]+/g, '_');
-  if (s === 'REAL' || s === 'AUTHENTIC' || s === 'LIKELY_AUTHENTIC') return 'Real';
+  if (s === 'REAL' || s === 'REAL_PHOTOGRAPH' || s === 'AUTHENTIC' || s === 'LIKELY_AUTHENTIC') return 'Real';
   if (s === 'AI_GENERATED' || s === 'LIKELY_AI_GENERATED' || s === 'SYNTHETIC' || s === 'GENERATED') return 'AI Generated';
-  if (s === 'MANIPULATED' || s === 'EDITED' || s === 'ALTERED' || s === 'TAMPERED') return 'Manipulated';
+  if (s === 'AI_EDITED' || s === 'MANIPULATED' || s === 'EDITED' || s === 'ALTERED' || s === 'TAMPERED') return 'AI Edited';
   if (s === 'DEEPFAKE' || s === 'FACE_SWAP') return 'Deepfake';
   return 'Uncertain';
 }

@@ -29,6 +29,14 @@ const VISUAL_CONFIG = {
     Icon: TriangleAlert,
     label: 'Manipulated',
   },
+  'AI Edited': {
+    color: '#E65100',
+    bg: 'rgba(230, 81, 0, 0.10)',
+    border: 'rgba(230, 81, 0, 0.25)',
+    badgeBg: 'rgba(230, 81, 0, 0.15)',
+    Icon: TriangleAlert,
+    label: 'AI Edited',
+  },
   Deepfake: {
     color: '#C62828',
     bg: 'rgba(198, 40, 40, 0.10)',
