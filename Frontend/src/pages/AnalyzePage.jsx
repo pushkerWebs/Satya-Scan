@@ -7,6 +7,10 @@ import LanguageSelector from '../components/LanguageSelector';
 import { useLanguage, useTranslation } from '../context/LanguageContext';
 
 const MAX_CHARS = 10000;
+const SPEECH_LANGUAGE_CODES = {
+  en: 'en-IN', hi: 'hi-IN', pa: 'pa-IN', bn: 'bn-IN',
+  ta: 'ta-IN', te: 'te-IN', mr: 'mr-IN', gu: 'gu-IN', ur: 'ur-PK',
+};
 
 function useFakeProgress(active) {
   const [step, setStep] = useState(0);
@@ -55,8 +59,59 @@ export default function AnalyzePage() {
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isListening, setIsListening] = useState(false);
   const fileRef = useRef(null);
+  const recognitionRef = useRef(null);
   const progressStep = useFakeProgress(loading);
+
+  useEffect(() => {
+    return () => recognitionRef.current?.stop();
+  }, []);
+
+  const toggleVoiceInput = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setError(t('analyze.errors.voiceUnsupported', 'Voice input is not supported in this browser. Please use Chrome or Edge, or type your claim.'));
+      return;
+    }
+
+    setError('');
+    const recognition = new SpeechRecognition();
+    recognition.lang = selectedLanguage === 'auto'
+      ? navigator.language
+      : (SPEECH_LANGUAGE_CODES[selectedLanguage] || selectedLanguage);
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    // SpeechRecognition repeats its interim results as it refines them. Keep the
+    // text that existed before this recording and rebuild the live transcript
+    // from the recognition result list each time, rather than appending updates.
+    const textBeforeRecording = textInput.trimEnd();
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event) => {
+      let sessionTranscript = '';
+      for (let index = 0; index < event.results.length; index += 1) {
+        sessionTranscript += event.results[index][0].transcript;
+      }
+      const separator = textBeforeRecording && sessionTranscript ? ' ' : '';
+      setTextInput(`${textBeforeRecording}${separator}${sessionTranscript}`.slice(0, MAX_CHARS));
+    };
+    recognition.onerror = (event) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setError(t('analyze.errors.voicePermission', 'Microphone access was blocked. Allow microphone permission and try again.'));
+      } else if (event.error !== 'aborted') {
+        setError(t('analyze.errors.voiceFailed', 'Voice transcription could not be completed. Please try again.'));
+      }
+    };
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -210,6 +265,31 @@ export default function AnalyzePage() {
                       className="w-full bg-[#FBE8CE] border border-[#C3CC9B] text-[#232B1B] rounded-xl px-5 py-4 focus:outline-none focus:border-[#5C6650] resize-none text-sm placeholder-[#5C6650]/40 transition-colors"
                     />
                     <div className="absolute bottom-3 right-3 flex items-center gap-3 text-xs text-[#5C6650]/60">
+                      <button
+                        type="button"
+                        onClick={toggleVoiceInput}
+                        aria-pressed={isListening}
+                        aria-label={isListening ? t('analyze.stopListening', 'Stop listening') : t('analyze.startListening', 'Use microphone')}
+                        title={isListening ? t('analyze.stopListening', 'Stop listening') : t('analyze.startListening', 'Use microphone')}
+                        className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-all ${isListening
+                          ? 'bg-red-700 text-white shadow-md shadow-red-700/20'
+                          : 'bg-[#232B1B] text-[#FBE8CE] shadow-md shadow-[#232B1B]/10 hover:bg-[#343F29] hover:-translate-y-px'}`}
+                      >
+                        <span className={`flex h-5 w-5 items-center justify-center rounded-full ${isListening ? 'bg-white/20' : 'bg-[#FBE8CE]/15'}`}>
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Z" />
+                          <path d="M18 11a1 1 0 1 0-2 0 4 4 0 0 1-8 0 1 1 0 1 0-2 0 6 6 0 0 0 5 5.91V21H8a1 1 0 1 0 0 2h8a1 1 0 1 0 0-2h-3v-4.09A6 6 0 0 0 18 11Z" />
+                        </svg>
+                        </span>
+                        {isListening ? t('analyze.stopListening', 'Stop recording') : t('analyze.voiceInput', 'Voice fact-check')}
+                      </button>
+                      {isListening && (
+                        <span className="flex h-4 items-end gap-0.5" aria-label="Recording audio">
+                          <span className="h-2 w-0.5 animate-pulse rounded-full bg-red-600" />
+                          <span className="h-4 w-0.5 animate-pulse rounded-full bg-red-600 [animation-delay:120ms]" />
+                          <span className="h-2.5 w-0.5 animate-pulse rounded-full bg-red-600 [animation-delay:240ms]" />
+                        </span>
+                      )}
                       <span className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#232B1B]/70 animate-pulse" />
                         {t('analyze.detectingLanguage')}
@@ -217,6 +297,11 @@ export default function AnalyzePage() {
                       <span>{textInput.length} / {MAX_CHARS.toLocaleString()}</span>
                     </div>
                   </div>
+                  <p className="mt-2 ml-1 text-xs text-[#5C6650]/70">
+                    {isListening
+                      ? t('analyze.voiceHintListening', 'Listening—tap Stop when you are done speaking.')
+                      : t('analyze.voiceHint', 'Tap Speak to dictate a claim, then review the transcript before analyzing.')}
+                  </p>
                 </motion.div>
               )}
 
