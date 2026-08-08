@@ -185,6 +185,11 @@ async function analyzeVisualAuthenticity(imageBuffer, mimeType, exifData, select
       }
     }
 
+    // Backend Safeguard: UNCERTAIN status confidence cannot exceed 70
+    if (status === 'Uncertain') {
+      confidence = Math.min(confidence, 70);
+    }
+
     logger.info('[Image Dual Architecture] Module 1 complete via Gemini Vision', { status, confidence, evidenceCount: evidence.length });
 
     return {
@@ -197,14 +202,16 @@ async function analyzeVisualAuthenticity(imageBuffer, mimeType, exifData, select
     logger.warn('[Image Dual Architecture] Module 1 Gemini Vision unavailable, engaging local forensic engine:', error.message);
     const localResult = performLocalForensics(imageBuffer, exifData);
 
+    const safeConfidence = localResult.status === 'Uncertain' ? Math.min(localResult.confidence, 70) : localResult.confidence;
+
     logger.info('[Image Dual Architecture] Module 1 complete via local forensic engine', {
       status: localResult.status,
-      confidence: localResult.confidence,
+      confidence: safeConfidence,
     });
 
     return {
       status: localResult.status,
-      confidence: localResult.confidence,
+      confidence: safeConfidence,
       evidence: localResult.evidence,
       error: null,
     };
@@ -422,6 +429,11 @@ async function verifyImage(imageBuffer, mimeType, originalFilename, selectedLang
 
   if (!visualAuthenticity || !visualAuthenticity.status || visualAuthenticity.confidence <= 0) {
     visualAuthenticity = performLocalForensics(imageBuffer, exifData);
+  }
+
+  // Backend Safeguard: UNCERTAIN confidence cannot exceed 70
+  if (visualAuthenticity.status === 'Uncertain') {
+    visualAuthenticity.confidence = Math.min(visualAuthenticity.confidence, 70);
   }
 
   const processingTime = getProcessingTime(startTime);

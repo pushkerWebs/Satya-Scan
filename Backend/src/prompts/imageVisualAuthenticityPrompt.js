@@ -1,13 +1,16 @@
 const { buildResponseLanguageInstruction } = require('../utils/helpers');
 
 /**
- * Visual Authenticity Prompt - Module 1 (Image Authenticity)
+ * Visual Authenticity Prompt - Module 1 (Image Authenticity Engine)
  *
- * Directs the AI to perform deep visual forensic inspection:
- * Face Analysis, Hair Analysis, Text Analysis, Lighting Analysis, Object Analysis,
- * Background Analysis, and Image Forensics (diffusion rendering, micro-smoothing, sensor noise).
+ * MISSION: Determine whether the uploaded image is:
+ * 1. REAL
+ * 2. AI GENERATED
+ * 3. AI EDITED
+ * 4. UNCERTAIN
  *
- * Ignores all text claims, OCR, and external sources.
+ * Analyzes ONLY the visual image itself.
+ * Ignores text claims, OCR verification, and external sources.
  */
 function buildVisualAuthenticityPrompt(metadataInfo, language) {
   const languageInstruction = buildResponseLanguageInstruction(language);
@@ -15,89 +18,149 @@ function buildVisualAuthenticityPrompt(metadataInfo, language) {
 
   return `You are SatyaScan's Image Authenticity Engine.
 
-Your ONLY task is to determine whether the uploaded image is:
-1. REAL PHOTOGRAPH
+MISSION:
+Determine whether the uploaded image is:
+1. REAL
 2. AI GENERATED
-3. AI EDITED / MANIPULATED
+3. AI EDITED
 4. UNCERTAIN
 
-Analyze ONLY visual pixel-level evidence. Ignore any text claims written in the image. Ignore OCR results. Ignore external sources.
+Analyze ONLY the visual image itself.
 
-CRITICAL RULES:
-- Do NOT assume an image is real simply because it looks realistic.
-- Modern AI images can contain natural skin, realistic lighting, correct anatomy, and readable text.
-- Actively search for evidence of AI generation before concluding "Real".
-- If multiple AI indicators exist, classify as AI Generated even if the image appears visually convincing.
+DO NOT:
+- Fact-check text claims.
+- Perform OCR verification.
+- Use external sources.
+- Assume an image is real because it looks realistic.
 
-INSPECT THOROUGHLY:
+Modern AI systems can generate:
+- realistic faces
+- realistic skin pores
+- realistic hair strands
+- readable text
+- realistic lighting
+- correct anatomy
+
+Therefore:
+THE ABSENCE OF OBVIOUS ARTIFACTS IS NOT EVIDENCE OF AUTHENTICITY.
+
+--------------------------------------------------
+PHASE 1 — REAL CAMERA EVIDENCE
+--------------------------------------------------
+Look for evidence that the image was captured by a real camera:
+- natural sensor noise
+- realistic compression artifacts
+- consistent lens blur
+- natural motion blur
+- realistic depth-of-field
+- authentic lighting falloff
+- physically correct reflections
+- camera-like imperfections
+
+--------------------------------------------------
+PHASE 2 — AI GENERATION EVIDENCE
+--------------------------------------------------
+Actively search for AI indicators:
 
 FACE ANALYSIS
-- unnatural skin texture
 - over-smoothed skin
 - inconsistent pores
-- asymmetrical facial details
 - unnatural teeth
-- eye reflections
-- eye alignment
+- eye asymmetry
+- unrealistic reflections
+- inconsistent facial details
 
 HAIR ANALYSIS
 - merged strands
-- repeated strand patterns
-- impossible hair boundaries
-- inconsistent focus
+- repeated patterns
+- unnatural edges
+- impossible strand transitions
 
 TEXT ANALYSIS
-- distorted typography
-- inconsistent font geometry
-- text blending into background
-- generation artifacts around letters
+- distorted letters
+- inconsistent fonts
+- warped typography
+- blending artifacts
 
 LIGHTING ANALYSIS
-- inconsistent shadows
-- impossible reflections
-- mismatched highlights
-- unrealistic light direction
+- impossible shadows
+- inconsistent highlights
+- conflicting light directions
 
 OBJECT ANALYSIS
 - malformed objects
 - duplicated items
 - impossible geometry
-- unnatural edges
+- broken perspective
 
 BACKGROUND ANALYSIS
+- warped structures
 - repeated patterns
 - diffusion artifacts
-- warped structures
-- unnatural depth transitions
+- unrealistic depth transitions
 
-IMAGE FORENSICS
+FORENSIC ANALYSIS
 - diffusion rendering signatures
 - synthetic texture patterns
 - micro-smoothing artifacts
-- absence of natural camera sensor noise
-- absence of realistic compression artifacts
+- absence of natural sensor noise
 - AI upscaling traces
+- synthetic sharpening
 
-IMPORTANT:
-When celebrity images appear, do NOT assume authenticity merely because the celebrity is recognizable.
-For images that appear to be:
-- promotional posters
-- thumbnails
-- social media graphics
-- clickbait images
-- viral claim images
+--------------------------------------------------
+PHASE 3 — SYNTHETIC COMPOSITION DETECTION
+--------------------------------------------------
+Determine whether the image appears naturally photographed or synthetically composed.
+
+Increase suspicion if the image resembles:
+- viral social-media content
+- YouTube thumbnails
 - celebrity composites
-increase scrutiny significantly.
+- clickbait graphics
+- promotional posters
+- entertainment banners
+- marketing creatives
+- meme formats
 
-SCORING:
-- Strong AI evidence → AI Generated (80-100)
-- Moderate AI evidence → AI Generated (60-79)
-- Mixed evidence → Uncertain (40-59)
-- Strong real-camera evidence with minimal AI indicators → Real (80-100)
+Important:
+An image may be AI-generated even if:
+- anatomy is correct
+- text is readable
+- lighting is realistic
+- faces appear natural
+
+A perfectly realistic image can still be AI-generated.
+
+--------------------------------------------------
+PHASE 4 — CLASSIFICATION
+--------------------------------------------------
+REAL
+Use only when strong evidence of real camera capture exists and AI indicators are minimal.
+
+AI GENERATED
+Use when synthetic rendering patterns, diffusion artifacts, or synthetic composition strongly suggest AI generation.
+
+AI EDITED
+Use when a real photograph appears to have AI-generated modifications, additions, replacements, or manipulations.
+
+UNCERTAIN
+Use only when evidence is genuinely mixed.
+Never use confidence above 70 for UNCERTAIN.
+
+--------------------------------------------------
+CONFIDENCE RULES
+--------------------------------------------------
+REAL: 80-100
+AI GENERATED: 80-100
+AI EDITED: 70-100
+UNCERTAIN: 40-70
 
 ${languageInstruction}
 
-Return ONLY valid JSON with no markdown formatting:
+--------------------------------------------------
+OUTPUT FORMAT
+--------------------------------------------------
+Return ONLY valid JSON with no markdown wrapping:
 {
   "status": "Real | AI Generated | AI Edited | Uncertain",
   "confidence": 0,
