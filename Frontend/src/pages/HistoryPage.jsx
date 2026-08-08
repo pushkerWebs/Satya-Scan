@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, FileText, Link2, Image, Trash2, ChevronLeft, ChevronRight, History, Lock } from 'lucide-react';
-import { getHistory, deleteHistoryItem } from '../api/api';
+import { getHistory, deleteHistoryItem, deleteAllHistory } from '../api/api';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from '../context/LanguageContext';
 
@@ -54,6 +54,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+  const [clearingAll, setClearingAll] = useState(false);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -61,7 +62,7 @@ export default function HistoryPage() {
     setError('');
     getHistory(page)
       .then(({ data }) => {
-        setChecks(data.checks);
+        setChecks(data.checks || []);
         setPagination(data.pagination);
       })
       .catch((err) => setError(err.response?.data?.message || 'Failed to load history'))
@@ -84,15 +85,36 @@ export default function HistoryPage() {
 
   const handleDelete = async (id, e) => {
     e.stopPropagation();
-    if (!confirm(t('history.deleteConfirm'))) return;
+    if (!confirm(t('history.deleteConfirm') || 'Delete this check?')) return;
     setDeletingId(id);
     try {
       await deleteHistoryItem(id);
       setChecks((prev) => prev.filter((c) => c._id !== id));
+      if (pagination && pagination.totalCount) {
+        setPagination((prev) => ({
+          ...prev,
+          totalCount: Math.max(0, prev.totalCount - 1),
+        }));
+      }
     } catch {
-      alert(t('history.deleteFailed'));
+      alert(t('history.deleteFailed') || 'Failed to delete history item');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (checks.length === 0) return;
+    if (!confirm(t('history.clearAllConfirm') || 'Are you sure you want to delete all verification history? This cannot be undone.')) return;
+    setClearingAll(true);
+    try {
+      await deleteAllHistory();
+      setChecks([]);
+      setPagination(null);
+    } catch {
+      alert(t('history.clearFailed') || 'Failed to clear all history');
+    } finally {
+      setClearingAll(false);
     }
   };
 
@@ -103,27 +125,42 @@ export default function HistoryPage() {
   return (
     <div className="min-h-screen bg-[#FBE8CE] text-[#232B1B] font-sans pt-20">
       <div className="max-w-[1150px] mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        {/* Header */}
+        {/* Header with Clear All Button */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
-          className="mb-8"
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
         >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-xl bg-[#768E56]/15 border border-[#768E56]/25">
-              <History size={20} style={{ color: '#768E56' }} strokeWidth={2} />
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-xl bg-[#768E56]/15 border border-[#768E56]/25">
+                <History size={20} style={{ color: '#768E56' }} strokeWidth={2} />
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#232B1B] tracking-tight">
+                {t('history.title')}
+              </h1>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-[#232B1B] tracking-tight">
-              {t('history.title')}
-            </h1>
+            <p className="text-sm text-[#5C6650] max-w-lg">
+              {pagination && pagination.totalCount > 0
+                ? `${pagination.totalCount} saved ${pagination.totalCount === 1 ? 'analysis' : 'analyses'} — tap any report to reopen it`
+                : 'Your saved verification reports'}
+            </p>
+            <div className="w-16 h-1 bg-[#768E56] rounded-full mt-4" />
           </div>
-          <p className="text-sm text-[#5C6650] max-w-lg">
-            {pagination
-              ? `${pagination.totalCount} saved ${pagination.totalCount === 1 ? 'analysis' : 'analyses'} — tap any report to reopen it`
-              : 'Your saved verification reports'}
-          </p>
-          <div className="w-16 h-1 bg-[#768E56] rounded-full mt-4" />
+
+          {!loading && checks.length > 0 && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={handleClearAll}
+              disabled={clearingAll}
+              className="self-start sm:self-center flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs sm:text-sm font-bold shadow-sm transition-all hover:shadow cursor-pointer disabled:opacity-50"
+            >
+              <Trash2 size={16} className="text-red-600" />
+              <span>{clearingAll ? (t('history.clearing') || 'Clearing...') : (t('history.clearAll') || 'Clear All History')}</span>
+            </motion.button>
+          )}
         </motion.div>
 
         {loading && (
@@ -200,7 +237,7 @@ export default function HistoryPage() {
                     </p>
                   </div>
 
-                  <div className="flex flex-col items-end gap-2 shrink-0">
+                  <div className="flex flex-col items-end gap-3 shrink-0">
                     <div className="text-center">
                       <span className="text-2xl sm:text-3xl font-extrabold tabular-nums" style={{ color: scoreColor }}>
                         {displayScore}
@@ -211,11 +248,12 @@ export default function HistoryPage() {
                     <button
                       onClick={(e) => handleDelete(check._id, e)}
                       disabled={deletingId === check._id}
-                      className="flex items-center gap-1 text-[10px] text-[#5C6650]/60 hover:text-red-700 disabled:opacity-50 font-semibold transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      className="flex items-center gap-1.5 text-xs text-red-700/80 hover:text-red-700 bg-red-50/70 hover:bg-red-100/80 px-2.5 py-1.5 rounded-lg border border-red-200/80 disabled:opacity-50 font-semibold transition-all"
                       aria-label={t('history.delete')}
+                      title={t('history.delete')}
                     >
-                      <Trash2 size={11} />
-                      {deletingId === check._id ? t('history.deleting') : t('history.delete')}
+                      <Trash2 size={13} className="text-red-600" />
+                      <span>{deletingId === check._id ? t('history.deleting') : t('history.delete')}</span>
                     </button>
                   </div>
                 </div>

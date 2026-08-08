@@ -230,32 +230,45 @@ function ImageAuthenticityCard({ visual }) {
           </div>
         </div>
 
-        {/* Evidence Section */}
-        <div className="mt-auto pt-4 border-t border-[#C3CC9B]">
-          <p className="text-[11px] font-bold text-[#5C6650] uppercase tracking-wider mb-2.5">
-            Evidence:
-          </p>
+        {/* Dedicated "WHY THIS VERDICT?" Section with numbered findings */}
+        <div className="mt-5 pt-4 border-t border-[#C3CC9B]">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h3 className="text-xs font-black text-[#232B1B] uppercase tracking-wider flex items-center gap-2">
+              <span className="w-1.5 h-3.5 rounded-full" style={{ background: cfg.color }} />
+              WHY THIS VERDICT?
+            </h3>
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+              style={{ background: cfg.badgeBg, color: cfg.color, border: `1px solid ${cfg.border}` }}
+            >
+              {evidence.length} Forensic {evidence.length === 1 ? 'Finding' : 'Findings'}
+            </span>
+          </div>
+
           {evidence.length > 0 ? (
-            <ul className="space-y-2">
+            <ol className="space-y-2.5">
               {evidence.map((item, idx) => (
                 <motion.li
                   key={idx}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.05 * idx }}
-                  className="flex items-start gap-2.5 text-xs text-[#232B1B] leading-relaxed"
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.04 * idx }}
+                  className="flex items-start gap-3 p-3 rounded-xl bg-[#F6F4EB] border border-[#C3CC9B]/80 text-xs text-[#232B1B] leading-relaxed shadow-xs"
                 >
-                  <span className="font-bold text-sm shrink-0 mt-[-1px]" style={{ color: cfg.color }}>
-                    •
+                  <span
+                    className="w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 mt-0.5 text-white"
+                    style={{ background: cfg.color }}
+                  >
+                    {idx + 1}
                   </span>
-                  <span className="font-medium">{item}</span>
+                  <span className="font-medium text-[#232B1B] pt-0.5">{item}</span>
                 </motion.li>
               ))}
-            </ul>
+            </ol>
           ) : (
-            <p className="text-xs text-[#5C6650] italic">
-              No specific anomalies detected in image pixels.
-            </p>
+            <div className="p-3.5 rounded-xl bg-[#F6F4EB] border border-[#C3CC9B]/80 text-xs text-[#5C6650] italic">
+              Standard optical sensor characteristics detected without generative anomalies.
+            </div>
           )}
         </div>
       </div>

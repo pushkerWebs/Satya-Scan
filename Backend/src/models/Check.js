@@ -39,6 +39,7 @@ const checkSchema = new mongoose.Schema(
       enum: ['text', 'url', 'image', 'page'],
       required: true,
     },
+    imageHash: { type: String, index: true },
     originalText: { type: String, maxlength: 15000 },
 
     // ─── Text/URL verification fields ────────────────────────
