@@ -5,7 +5,7 @@ const { parseGeminiJSON, resolveLanguage } = require('../utils/helpers');
 
 
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY || 'missing-key');
 
 console.log("Gemini model:", GEMINI_MODEL);
@@ -204,6 +204,9 @@ async function analyzeImage(imageBuffer, mimeType, prompt, selectedLanguage) {
 
     return parsed;
   } catch (error) {
+    console.error("========== GEMINI IMAGE ANALYSIS ERROR ==========");
+    console.error(error);
+    console.error("================================================");
     logger.error('Gemini image analysis failed:', getErrorMessage(error));
     throw error instanceof GeminiProviderError
       ? error

@@ -4,6 +4,7 @@ const { verifyText } = require('./textVerificationService');
 const { extractExifData } = require('../utils/exifParser');
 const { buildVisualAuthenticityPrompt } = require('../prompts/imageVisualAuthenticityPrompt');
 const { buildOcrExtractionPrompt } = require('../prompts/imageOcrExtractionPrompt');
+const { extractTextWithTesseract } = require('./tesseractOcrService');
 const { resolveLanguage, getProcessingTime } = require('../utils/helpers');
 
 /**
@@ -69,7 +70,7 @@ function isMeaningfulFactualClaim(rawText, detectedClaim) {
 /**
  * Local Forensic Heuristic Analysis
  * Runs when external API is throttled or offline, inspecting metadata, file structure, and compression.
- * Guarantees a valid status (Real | AI Generated | Manipulated | Deepfake | Uncertain) with genuine evidence bullets.
+ * Guarantees a valid status (Real | AI Generated | AI Edited | Deepfake | Uncertain) with genuine evidence bullets.
  */
 function performLocalForensics(imageBuffer, exifData) {
   const metadataSummary = (exifData?.summary || '').toLowerCase();
@@ -97,7 +98,7 @@ function performLocalForensics(imageBuffer, exifData) {
 
   if (hasEditSignature) {
     return {
-      status: 'Manipulated',
+      status: 'AI Edited',
       confidence: 84,
       evidence: [
         'Digital image editing software signature detected (Photoshop/GIMP)',
@@ -176,7 +177,7 @@ async function analyzeVisualAuthenticity(imageBuffer, mimeType, exifData, select
         evidence = ['Diffusion rendering artifacts detected on surfaces', 'Synthetic texture patterns in background', 'Unrealistic lighting and reflection consistency'];
       } else if (status === 'Real') {
         evidence = ['Natural optical sensor noise distribution', 'Coherent physical lighting and genuine lens characteristics', 'Organic fine details consistent with camera capture'];
-      } else if (status === 'Manipulated') {
+      } else if (status === 'AI Edited' || status === 'Manipulated') {
         evidence = ['Edge compositing artifacts observed', 'Inconsistent noise grain across edited regions'];
       } else if (status === 'Deepfake') {
         evidence = ['Facial boundary inconsistencies detected', 'Unnatural gaze and eye reflection patterns'];
@@ -199,6 +200,7 @@ async function analyzeVisualAuthenticity(imageBuffer, mimeType, exifData, select
       error: null,
     };
   } catch (error) {
+    console.error("Gemini Vision visual authenticity error:", error);
     logger.warn('[Image Dual Architecture] Module 1 Gemini Vision unavailable, engaging local forensic engine:', error.message);
     const localResult = performLocalForensics(imageBuffer, exifData);
 
@@ -220,10 +222,11 @@ async function analyzeVisualAuthenticity(imageBuffer, mimeType, exifData, select
 
 /**
  * Module 2: Text Claim Verification
- * Step 1: OCR Extraction
- * Step 2: Factual Claim Filtering (filters out greetings, watermarks, non-claims)
- * Step 3: If meaningful claim exists -> send to existing SatyaScan fact-check pipeline
- * Step 4: Return verdict, confidence, reason, sources
+ * Step 1: Gemini OCR Extraction -> Fallback to Local Tesseract OCR on failure
+ * Step 2: Differentiate OCR Failure ({ hasText: null, error: "OCR unavailable" }) from No Text ({ hasText: false })
+ * Step 3: Factual Claim Filtering (filters out greetings, watermarks, non-claims)
+ * Step 4: If meaningful claim exists -> send to SatyaScan fact-check pipeline
+ * Step 5: Return verdict, confidence, reason, sources
  */
 async function analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLanguage) {
   const language = resolveLanguage(selectedLanguage);
@@ -232,21 +235,36 @@ async function analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLangua
   const ocrPrompt = buildOcrExtractionPrompt(language);
 
   let ocrRaw = null;
+  let ocrError = null;
+
+  // 1. Try Gemini Vision OCR first
   try {
     ocrRaw = await geminiService.analyzeImage(imageBuffer, mimeType, ocrPrompt, selectedLanguage);
   } catch (error) {
-    logger.warn('[Image Dual Architecture] Module 2 OCR extraction primary attempt failed:', error.message);
-    // Short retry with small backoff
-    await new Promise(r => setTimeout(r, 600));
+    ocrError = error;
+    console.error("Gemini OCR extraction failed:", error);
+    logger.warn('[Image Dual Architecture] Module 2 Gemini OCR failed, engaging Tesseract OCR fallback:', error.message);
+  }
+
+  let rawText = (ocrRaw?.extractedText || '').trim();
+  let detectedClaim = (ocrRaw?.detectedClaim || '').trim();
+
+  // 2. If Gemini OCR failed or returned empty text, engage local Tesseract OCR fallback
+  if (!rawText && !detectedClaim) {
     try {
-      ocrRaw = await geminiService.analyzeImage(imageBuffer, mimeType, ocrPrompt, selectedLanguage);
-    } catch (retryErr) {
-      logger.warn('[Image Dual Architecture] Module 2 OCR extraction retry unavailable:', retryErr.message);
+      const tesseractText = await extractTextWithTesseract(imageBuffer);
+      if (tesseractText && tesseractText.length > 2) {
+        rawText = tesseractText;
+        detectedClaim = tesseractText;
+        ocrError = null; // Successfully extracted text via Tesseract fallback
+        logger.info('[Image Dual Architecture] Tesseract OCR successfully extracted text from image:', { rawText });
+      }
+    } catch (tessErr) {
+      console.error("Tesseract OCR fallback failed:", tessErr);
+      logger.error('[Image Dual Architecture] Tesseract OCR fallback failed:', tessErr.message);
     }
   }
 
-  const rawText = (ocrRaw?.extractedText || '').trim();
-  const detectedClaim = (ocrRaw?.detectedClaim || '').trim();
   const claim = (detectedClaim && detectedClaim.length >= 4) ? detectedClaim : rawText;
   const hasMeaningfulClaim = isMeaningfulFactualClaim(rawText, detectedClaim);
 
@@ -255,21 +273,56 @@ async function analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLangua
   console.log("CLEANED CLAIM:", claim);
   console.log("HAS CLAIM:", hasMeaningfulClaim);
 
+  // 3. Separate OCR FAILURE from NO TEXT FOUND
+  if (!rawText && !detectedClaim) {
+    if (ocrError) {
+      // OCR FAILURE: Extraction failed across all engines
+      const ocrFailureResult = {
+        hasMeaningfulClaim: false,
+        hasText: null,
+        extractedText: null,
+        verdict: null,
+        confidence: null,
+        reason: null,
+        sources: [],
+        error: "OCR unavailable",
+      };
+      console.log("OCR RESULT:", ocrFailureResult);
+      return ocrFailureResult;
+    } else {
+      // NO TEXT: Image was processed successfully and genuinely contains no readable text
+      const noTextResult = {
+        hasMeaningfulClaim: false,
+        hasText: false,
+        extractedText: null,
+        verdict: null,
+        confidence: null,
+        reason: null,
+        sources: [],
+        error: null,
+      };
+      console.log("OCR RESULT:", noTextResult);
+      return noTextResult;
+    }
+  }
+
+  // If text was found, but it is non-claim (e.g. "Hello", "Subscribe", "❤️"):
   if (!hasMeaningfulClaim || !claim) {
-    const emptyResult = {
+    const nonClaimResult = {
       hasMeaningfulClaim: false,
-      hasText: false,
-      extractedText: null,
+      hasText: true,
+      extractedText: rawText,
       verdict: null,
       confidence: null,
       reason: null,
       sources: [],
       error: null,
     };
-    console.log("OCR RESULT:", emptyResult);
-    return emptyResult;
+    console.log("OCR RESULT:", nonClaimResult);
+    return nonClaimResult;
   }
 
+  // 4. Meaningful claim detected -> forward to SatyaScan fact-checking pipeline
   logger.info('[Image Dual Architecture] Module 2: Meaningful claim detected, forwarding to existing SatyaScan fact-check engine', {
     claimToVerify: claim,
   });
@@ -353,6 +406,7 @@ async function analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLangua
 
     return ocrClaimVerification;
   } catch (error) {
+    console.error("Module 2 fact-check error:", error);
     logger.error('[Image Dual Architecture] Module 2 fact-check failed:', error.message);
     const fallbackClaimResult = {
       hasMeaningfulClaim: true,
@@ -405,16 +459,17 @@ async function verifyImage(imageBuffer, mimeType, originalFilename, selectedLang
   try {
     ocrClaimVerification = await analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLanguage);
   } catch (err) {
+    console.error("Module 2 caught outer error:", err);
     logger.warn('Module 2 caught outer error:', err.message);
     ocrClaimVerification = {
       hasMeaningfulClaim: false,
-      hasText: false,
+      hasText: null, // OCR FAILURE
       extractedText: null,
       verdict: null,
       confidence: null,
       reason: null,
       sources: [],
-      error: err.message,
+      error: 'OCR unavailable',
     };
   }
 
@@ -423,6 +478,7 @@ async function verifyImage(imageBuffer, mimeType, originalFilename, selectedLang
   try {
     visualAuthenticity = await analyzeVisualAuthenticity(imageBuffer, mimeType, exifData, selectedLanguage);
   } catch (err) {
+    console.error("Module 1 caught outer error:", err);
     logger.warn('Module 1 caught outer error, engaging local forensics:', err.message);
     visualAuthenticity = performLocalForensics(imageBuffer, exifData);
   }

@@ -9,6 +9,8 @@ build/
 **/build/
 out/
 **/out/
+*.traineddata
+**/*.traineddata
 
 # Environment files (containing secrets)
 .env
