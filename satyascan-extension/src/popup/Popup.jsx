@@ -1544,12 +1544,35 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
     }
   }, [token, syncEnabled, loadHistory]);
 
-  // ── Clear local scan history ────────────────────────────────────────────
+  // ── Clear scan history permanently ──────────────────────────────────────
   const clearHistory = useCallback(async () => {
-    chrome.storage.local.set({ satyascan_history: [] }, () => {
-      setHistory([]);
-    });
-  }, []);
+    try {
+      // 1. If user is authenticated, delete all history from backend database
+      if (token) {
+        try {
+          await fetch(`${API_URL}/api/history`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            }
+          });
+        } catch (backendErr) {
+          console.error('[Popup] Failed to delete cloud history:', backendErr);
+        }
+      }
+
+      // 2. Clear active cached scan result and local storage history
+      chrome.storage.local.remove([STORAGE_KEY_RESULT], () => {
+        chrome.storage.local.set({ satyascan_history: [] }, () => {
+          setHistory([]);
+          setShowMergePrompt(false);
+        });
+      });
+    } catch (err) {
+      console.error('[Popup] Error clearing history:', err);
+    }
+  }, [token]);
 
   // ── Navigation Handlers ─────────────────────────────────────────────────
   const handleHome = useCallback(() => {
@@ -1619,7 +1642,6 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
         } else {
           setResult(saved.result);
           setView('result');
-          saveToHistory(saved.result);
         }
       } else if (saved.status === 'error') {
         setErrorData({
@@ -1632,7 +1654,7 @@ export default function Popup({ uiLang, onToggleLang, token, user, onLogout, onS
         setView('error');
       }
     });
-  }, [loadHistory, saveToHistory]);
+  }, [loadHistory]);
 
   // ── Listen for local storage state updates ──────────────────────────────
   useEffect(() => {

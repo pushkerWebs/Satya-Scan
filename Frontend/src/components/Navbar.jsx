@@ -104,7 +104,7 @@ export default function Navbar() {
           >
             {t('nav.analyze')}
           </Link>
-          {isLoggedIn && (
+          {isLoggedIn && location.pathname !== '/history' && (
             <Link
               to="/history"
               className="text-[#5C6650] hover:text-[#232B1B] transition-colors font-semibold no-underline"
@@ -178,7 +178,7 @@ export default function Navbar() {
           <Link to="/analyze" className="block text-[#5C6650] hover:text-[#232B1B] py-1.5 transition-colors no-underline font-semibold" onClick={() => setMenuOpen(false)}>
             {t('nav.analyze')}
           </Link>
-          {isLoggedIn && (
+          {isLoggedIn && location.pathname !== '/history' && (
             <Link to="/history" className="block text-[#5C6650] hover:text-[#232B1B] py-1.5 transition-colors no-underline font-semibold" onClick={() => setMenuOpen(false)}>
               {t('nav.history')}
             </Link>

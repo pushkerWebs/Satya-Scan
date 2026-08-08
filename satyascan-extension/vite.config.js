@@ -32,6 +32,7 @@ export default defineConfig({
     },
   },
   build: {
+    modulePreload: false,
     rollupOptions: {
       input: {
         // ── Popup (React app) ──────────────────────────────────────────────

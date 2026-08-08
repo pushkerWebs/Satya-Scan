@@ -9,7 +9,8 @@ const logger = require('../config/logger');
  */
 async function getReport(req, res, next) {
   try {
-    const check = await Check.findById(req.params.id).lean();
+    const reportId = req.params.id;
+    const check = await Check.findById(reportId).lean();
 
     if (!check) {
       return res.status(404).json({ message: 'Report not found' });
@@ -20,8 +21,55 @@ async function getReport(req, res, next) {
       return generatePdf(check, res);
     }
 
-    // JSON format (default)
-    res.json(check);
+    // Sanitize output: Never expose user account data, user ID, email, or private history
+    const publicReport = {
+      _id: check._id,
+      inputType: check.inputType,
+      originalText: check.originalText,
+      trustScore: check.trustScore,
+      aiScore: check.aiScore,
+      aiReasoning: check.aiReasoning,
+      sourceScore: check.sourceScore,
+      claims: check.claims || [],
+      pageType: check.pageType,
+      pageTypeLabel: check.pageTypeLabel,
+      pageTypeDescription: check.pageTypeDescription,
+      pageVerdict: check.pageVerdict,
+      politicalBias: check.politicalBias,
+      suspiciousStatements: check.suspiciousStatements || [],
+      missingContext: check.missingContext || [],
+      recommendation: check.recommendation,
+      articleTitle: check.articleTitle,
+      pageTitle: check.pageTitle,
+      metaDescription: check.metaDescription,
+      imageVerdict: check.imageVerdict,
+      aiProbability: check.aiProbability,
+      deepfakeProbability: check.deepfakeProbability,
+      manipulationProbability: check.manipulationProbability,
+      metadataIntegrity: check.metadataIntegrity,
+      findings: check.findings || [],
+      imageSummary: check.imageSummary,
+      imageConfidence: check.imageConfidence,
+      language: check.language,
+      detectedLanguage: check.detectedLanguage,
+      responseLanguage: check.responseLanguage,
+      processingTime: check.processingTime,
+      reasoning: check.reasoning,
+      confidenceBreakdown: check.confidenceBreakdown,
+      sourceConsensus: check.sourceConsensus,
+      evidenceMetrics: check.evidenceMetrics,
+      supportCount: check.supportCount,
+      contradictCount: check.contradictCount,
+      neutralCount: check.neutralCount,
+      unknownCount: check.unknownCount,
+      verifiedFacts: check.verifiedFacts || [],
+      keyFindings: check.keyFindings || [],
+      finalAssessment: check.finalAssessment,
+      timeline: check.timeline,
+      createdAt: check.createdAt,
+    };
+
+    res.json(publicReport);
   } catch (error) {
     if (error.name === 'CastError') {
       return res.status(404).json({ message: 'Report not found' });

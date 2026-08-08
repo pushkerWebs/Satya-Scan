@@ -958,6 +958,7 @@ export default function ResultsPage() {
     metadataIntegrity, findings = [], summary: imgSummary,
   } = result;
 
+  const effectiveCheckId = checkId || result?.checkId || result?._id || paramCheckId;
   const isImage = inputType === 'image';
   const isSpecialUrlType = !isImage && pageType && pageType !== 'news';
 
@@ -1020,7 +1021,7 @@ export default function ResultsPage() {
             <ShieldCheck size={10} style={{ color: '#768E56' }} />
             {t('results.independentVerification', 'Independent Verification')}
           </span>
-          {checkId && (
+          {effectiveCheckId && (
             <button onClick={() => setShowShare(true)}
               className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors bg-[#E4DFB5] hover:bg-[#E4DFB5]/70 text-[#232B1B] border border-[#C3CC9B]">
               <Share2 size={12} />
@@ -1394,8 +1395,8 @@ export default function ResultsPage() {
         <p className="text-[11px] text-[#5C6650]">{t('results.footerCopy', '© 2025 SatyaScan — Independent Verification')}</p>
       </div>
 
-      {showShare && checkId && (
-        <ShareModal checkId={checkId} onClose={() => setShowShare(false)} />
+      {showShare && effectiveCheckId && (
+        <ShareModal checkId={effectiveCheckId} onClose={() => setShowShare(false)} />
       )}
     </div>
   );

@@ -39,6 +39,10 @@ export const getHistory = (page = 1) =>
 export const getHistoryItem = (id) =>
   client.get(`/history/${id}`);
 
+/** DELETE /api/history — delete all history for authenticated user */
+export const deleteAllHistory = () =>
+  client.delete('/history');
+
 /** DELETE /api/history/:id — requires auth */
 export const deleteHistoryItem = (id) =>
   client.delete(`/history/${id}`);

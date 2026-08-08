@@ -9,11 +9,12 @@ import AnalyzePage from './pages/AnalyzePage';
 import ResultsPage from './pages/ResultsPage';
 import HistoryPage from './pages/HistoryPage';
 import ReportPage from './pages/ReportPage';
+import SharedReportPage from './pages/SharedReportPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 
 // Pages that have their own built-in top bar — don't show the global Navbar
-const PAGES_WITH_OWN_NAV = ['/', '/analyze', '/results', '/login', '/signup'];
+const PAGES_WITH_OWN_NAV = ['/', '/analyze', '/analyze-page', '/results', '/result', '/login', '/signup'];
 
 function NotFoundPage() {
   const { t } = useTranslation();
@@ -35,7 +36,9 @@ function Layout({ children }) {
   const { pathname } = useLocation();
   const hideNav =
     PAGES_WITH_OWN_NAV.includes(pathname) ||
-    pathname.startsWith('/results/');
+    pathname.startsWith('/results/') ||
+    pathname.startsWith('/result/') ||
+    pathname.startsWith('/shared/');
   const showNav = !hideNav;
   return (
     <div className="min-h-screen bg-[#0B0B0B] flex flex-col">
@@ -55,10 +58,14 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/analyze" element={<AnalyzePage />} />
+                <Route path="/analyze-page" element={<AnalyzePage />} />
                 <Route path="/results/:checkId" element={<ResultsPage />} />
                 <Route path="/results" element={<ResultsPage />} />
+                <Route path="/result/:checkId" element={<ResultsPage />} />
+                <Route path="/result" element={<ResultsPage />} />
                 <Route path="/history" element={<HistoryPage />} />
-                <Route path="/report/:id" element={<ReportPage />} />
+                <Route path="/shared/:id" element={<SharedReportPage />} />
+                <Route path="/report/:id" element={<SharedReportPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="*" element={<NotFoundPage />} />

@@ -132,4 +132,18 @@ async function mergeHistory(req, res, next) {
   }
 }
 
-module.exports = { getHistory, getHistoryItem, deleteHistoryItem, mergeHistory };
+/**
+ * DELETE /api/history
+ * Permanently deletes all checks for the authenticated user.
+ */
+async function deleteAllHistory(req, res, next) {
+  try {
+    const result = await Check.deleteMany({ userId: req.userId });
+    logger.info(`Deleted all history checks for user: ${req.userId}, count: ${result.deletedCount}`);
+    res.json({ message: 'All history deleted successfully', count: result.deletedCount });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { getHistory, getHistoryItem, deleteHistoryItem, deleteAllHistory, mergeHistory };

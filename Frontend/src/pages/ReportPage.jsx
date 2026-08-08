@@ -87,14 +87,6 @@ export default function ReportPage() {
             <Link to="/" className="ss-btn-secondary text-sm px-4 py-2">
               ← {t('report.backHome')}
             </Link>
-            <a
-              href={pdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ss-btn-primary text-sm px-4 py-2"
-            >
-              📄 PDF
-            </a>
           </div>
         </div>
 
