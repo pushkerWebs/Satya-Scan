@@ -3,19 +3,7 @@
  * Main orchestration pipeline for claim / URL verification.
  *
  * Reasoning engine: Gemini ONLY.
- * On Gemini quota / rate-limit errors → graceful evidence-only fallback (no crash).
- * OpenAI is NOT used.
- *
- * Pipeline:
- *  1. URL scraping (if inputType === 'url') + URL type classification
- *  2. Entity extraction + language detection
- *  3. Diversified query generation (entity-aware + Gemini-enhanced)
- *  4. Google Fact Check API + Tavily (parallel)
- *  5. Merge, deduplicate, rank evidence
- *  6. Gemini reasoning — quota/error → graceful evidence-only result
- *     • URL type 'news' + all text inputs → buildTextVerificationPrompt (unchanged)
- *     • URL types official / reference / opinion / social_media → buildUrlTypePrompt
- *  7. Build structured result
+ * Includes semantic source relevance filtering to eliminate unrelated government / UN documents.
  */
 
 const logger = require('../config/logger');
@@ -36,25 +24,7 @@ const {
   getSourceTier,
   calculateSourceCredibility,
 } = require('../utils/helpers');
-
-// ─── Gemini error classification ──────────────────────────────────────────────
-
-function classifyGeminiError(error) {
-  const msg = (error?.message || String(error)).toLowerCase();
-  const cause = (error?.cause?.message || '').toLowerCase();
-  const combined = msg + ' ' + cause;
-
-  if (combined.includes('429') || combined.includes('quota') || combined.includes('resource_exhausted')) {
-    return { type: 'quota', userMessage: 'Gemini API quota reached. Results are based on retrieved evidence only.' };
-  }
-  if (combined.includes('api_key_service_blocked') || combined.includes('403') || combined.includes('permission')) {
-    return { type: 'blocked', userMessage: 'Gemini API key issue. Results are based on retrieved evidence only.' };
-  }
-  if (combined.includes('503') || combined.includes('502') || combined.includes('timeout') || combined.includes('econnreset')) {
-    return { type: 'unavailable', userMessage: 'Gemini is temporarily unavailable. Results are based on retrieved evidence only.' };
-  }
-  return { type: 'unknown', userMessage: 'Gemini analysis failed. Results are based on retrieved evidence only.' };
-}
+const { filterRelevantSources } = require('../utils/sourceRelevanceFilter');
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
@@ -70,13 +40,11 @@ async function verifyText(content, inputType, selectedLanguage) {
 
   // ── Step 1: Content extraction + URL classification ──────────────────────
   let claimText = content;
-  let pageClassification = null; // Only set for URL inputs
+  let pageClassification = null;
 
   if (inputType === 'url') {
     logger.info('Step 1: Scraping URL for content');
     claimText = await extractTextFromUrl(content);
-
-    // Classify the URL type (pure heuristic — no network call)
     pageClassification = classifyUrl(content);
     logger.info(`Step 1a: URL classified as "${pageClassification.pageType}" — ${pageClassification.pageTypeLabel}`);
   } else {
@@ -88,13 +56,16 @@ async function verifyText(content, inputType, selectedLanguage) {
   const { entities, queries: entityQueries, detectedLanguage } = analyzeClaimForSearch(claimText);
   logger.info(`Detected language: ${detectedLanguage}, entities: people=${entities.people.join(',')}, locations=${entities.locations.join(',')}, events=${entities.events.join(',')}`);
 
-  // ── Step 3: Diversified query generation (Local Generation) ───────────────
-  logger.info('Step 3: Generating diversified search queries locally');
+  // ── Step 3: Targeted Search Queries on the Full Cleaned Claim ────────────
+  logger.info('Step 3: Generating targeted queries based on the full cleaned claim');
+  const trimmedClaim = claimText.trim().replace(/[\r\n\t]+/g, ' ');
   const localQueries = [];
-  const trimmedClaim = claimText.trim();
+
+  // 1. Full cleaned claim
   localQueries.push(trimmedClaim.slice(0, 300));
+  localQueries.push(`"${trimmedClaim.slice(0, 150)}"`);
   localQueries.push(`${trimmedClaim.slice(0, 200)} fact check`);
-  localQueries.push(`${trimmedClaim.slice(0, 200)} official statement`);
+  localQueries.push(`${trimmedClaim.slice(0, 200)} news`);
 
   const mainEntities = [
     ...(entities.people || []),
@@ -104,27 +75,31 @@ async function verifyText(content, inputType, selectedLanguage) {
   ].slice(0, 3);
   
   mainEntities.forEach(ent => {
-    localQueries.push(`${ent} news`);
-    localQueries.push(`${ent} statement`);
+    localQueries.push(`${ent} ${trimmedClaim.slice(0, 100)}`);
   });
 
   const mergedQueries = [...new Set([...localQueries, ...entityQueries])]
-    .filter((q) => q && q.trim().length > 5);
+    .filter((q) => q && q.trim().length > 4);
 
-  const searchQueries = mergedQueries.slice(0, 5); // Cap to 5 queries for performance
+  const searchQueries = mergedQueries.slice(0, 5);
   logger.info(`Final search queries (${searchQueries.length}): ${JSON.stringify(searchQueries)}`);
 
   // ── Step 4+5: Parallel evidence retrieval ─────────────────────────────────
-  logger.info('Step 4+5: Fetching Google Fact Check API, Tavily, and Official Government sources in parallel');
-  const officialQuery = `${trimmedClaim.slice(0, 180)} site:gov OR site:gov.in OR site:nic.in OR site:who.int OR site:un.org`;
-  
+  logger.info('Step 4+5: Fetching Google Fact Check API and Tavily search results');
+
+  // Only query official government domains if the claim mentions government, laws, taxes, or policies
+  const isGovRelevant = /gov|ministry|minister|treaty|parliament|court|supreme court|policy|scheme|subsidy|rbi|sebi|police|arrest|who\b|un\b/i.test(trimmedClaim);
+  const officialQuery = isGovRelevant
+    ? `${trimmedClaim.slice(0, 180)} site:gov OR site:gov.in OR site:nic.in`
+    : null;
+
   const [factCheckResults, tavilyResults, officialResults] = await Promise.all([
     searchFactCheck(claimText.slice(0, 500)),
     searchMultiple(searchQueries),
-    searchSingle(officialQuery, false)
+    officialQuery ? searchSingle(officialQuery, false) : Promise.resolve([])
   ]);
 
-  // Map official search results to same format as tavily results
+  // Map official search results
   const mappedOfficial = (officialResults || []).map((r) => {
     const tier = getSourceTier(r.url);
     return {
@@ -140,75 +115,117 @@ async function verifyText(content, inputType, selectedLanguage) {
     };
   });
 
-  logger.info(`Fact Check API: ${factCheckResults.length} | Tavily: ${tavilyResults.length} | Official: ${mappedOfficial.length}`);
-
-  // ── Step 6: Merge, deduplicate, rank ──────────────────────────────────────
-  logger.info('Step 6: Merging and ranking evidence');
+  // Merge and deduplicate raw candidate sources
   const combined = [...factCheckResults, ...tavilyResults, ...mappedOfficial];
   const uniqueEvidence = deduplicateByKey(combined, 'url');
+  logger.info(`Raw retrieved unique evidence: ${uniqueEvidence.length} sources`);
 
-  // Custom Ranker (Part 3)
-  uniqueEvidence.sort((a, b) => {
-    // 1. Government / Official Domains
-    const isGovA = /gov\.in|gov|nic\.in|who\.int|un\.org/i.test(a.url);
-    const isGovB = /gov\.in|gov|nic\.in|who\.int|un\.org/i.test(b.url);
-    if (isGovA && !isGovB) return -1;
-    if (!isGovA && isGovB) return 1;
+  // ── Step 6: Semantic Similarity & Relevance Filtering ─────────────────────
+  // Reject sources below relevance threshold and filter out unrelated UN / government PDFs
+  logger.info('Step 6: Applying semantic similarity & entity relevance filtering against claim');
+  const relevantEvidence = filterRelevantSources(uniqueEvidence, claimText, entities, 0.28);
+  logger.info(`Sources passing relevance threshold: ${relevantEvidence.length} (pruned ${uniqueEvidence.length - relevantEvidence.length} unrelated sources)`);
 
-    // 2. Google Fact Check hits (isFactCheck)
+  // If no relevant sources directly address the claim, return clean Unverified state with empty sources
+  if (relevantEvidence.length === 0) {
+    logger.warn('No relevant sources found directly addressing the claim. Returning Unverified with empty sources.');
+    const emptyReason = responseLanguage === 'hi'
+      ? 'दावे की पुष्टि के लिए कोई विश्वसनीय स्रोत सीधे तौर पर नहीं मिला।'
+      : 'No reliable sources found directly addressing the claim.';
+
+    return {
+      success: true,
+      inputType,
+      trustScore: 50,
+      verdict: 'Unverified',
+      confidence: 50,
+      aiLikelihood: estimateAiLikelihood(claimText),
+      aiScore: 50,
+      aiReasoning: emptyReason,
+      reasoning: {
+        evidenceSummary: emptyReason,
+        aiReasoning: emptyReason,
+        crossSourceAgreement: 'None',
+        officialConfirmation: 'None',
+      },
+      confidenceBreakdown: {
+        evidenceQuality: { stars: 1, explanation: responseLanguage === 'hi' ? 'कोई प्रासंगिक स्रोत नहीं मिला।' : 'No directly relevant sources found.' },
+        independentSources: { stars: 1, explanation: responseLanguage === 'hi' ? 'कोई स्वतंत्र रिपोर्टिंग नहीं मिली।' : 'No independent reporting found.' },
+        officialSources: { stars: 1, explanation: responseLanguage === 'hi' ? 'कोई आधिकारिक पुष्टि नहीं मिली।' : 'No official statement found.' },
+        recentReporting: { stars: 1, explanation: responseLanguage === 'hi' ? 'कोई कवरेज नहीं मिला।' : 'No recent coverage found.' },
+        contradictoryEvidence: { status: responseLanguage === 'hi' ? 'कोई नहीं मिला' : 'None Found', explanation: responseLanguage === 'hi' ? 'कोई विरोधाभासी स्रोत नहीं मिला।' : 'No contradicting sources found.' },
+        aiConsistency: { status: responseLanguage === 'hi' ? 'मध्यम' : 'Medium', explanation: responseLanguage === 'hi' ? 'साक्ष्य के अभाव में अपुष्ट स्थिति।' : 'Claim remains uncorroborated due to lack of evidence.' },
+      },
+      sourceConsensus: [],
+      evidenceMetrics: { supportCount: 0, contradictCount: 0, neutralCount: 0, unknownCount: 0 },
+      supportCount: 0,
+      contradictCount: 0,
+      neutralCount: 0,
+      unknownCount: 0,
+      sourceCredibility: 0,
+      language: responseLanguage,
+      detectedLanguage: detectedLanguage !== 'en' ? detectedLanguage : responseLanguage,
+      responseLanguage,
+      claims: [
+        {
+          text: claimText.slice(0, 500),
+          verdict: 'Unverified',
+          confidence: 50,
+          reasoning: emptyReason,
+          sourceCount: 0,
+          trustedSourceCount: 0,
+          sources: [],
+        },
+      ],
+      entities,
+      factCheckHits: 0,
+      apiWorking: true,
+      reasoningProvider: 'gemini',
+      providerStatus: 'ok',
+      processingTime: getProcessingTime(startTime),
+      verifiedFacts: [],
+      keyFindings: [
+        responseLanguage === 'hi'
+          ? 'इस विशिष्ट दावे की पुष्टि करने वाले कोई सत्यापित स्रोत नहीं मिले।'
+          : 'No verified reporting or credible sources found directly addressing this claim.'
+      ],
+      finalAssessment: emptyReason,
+      timeline: null,
+      claimsVerified: 0,
+      claimsTotal: 1,
+      sources: [],
+      _verdict: 'UNVERIFIED',
+      _confidence: 50,
+      _summary: emptyReason,
+      _originalText: claimText.slice(0, 10000),
+      _queriesUsed: searchQueries,
+    };
+  }
+
+  // Custom Ranker on relevant sources
+  relevantEvidence.sort((a, b) => {
+    // 1. Google Fact Check hits
     if (a.isFactCheck && !b.isFactCheck) return -1;
     if (!a.isFactCheck && b.isFactCheck) return 1;
 
-    // 3. Reuters, AP, AFP
-    const isWireA = /reuters\.com|apnews\.com|afp\.com/i.test(a.url);
-    const isWireB = /reuters\.com|apnews\.com|afp\.com/i.test(b.url);
-    if (isWireA && !isWireB) return -1;
-    if (!isWireA && isWireB) return 1;
+    // 2. High semantic relevance
+    const relDiff = (b.relevanceScore || 0) - (a.relevanceScore || 0);
+    if (Math.abs(relDiff) > 0.15) return relDiff;
 
-    // 4. BBC
-    const isBbcA = /bbc\.com|bbc\.co\.uk/i.test(a.url);
-    const isBbcB = /bbc\.com|bbc\.co\.uk/i.test(b.url);
-    if (isBbcA && !isBbcB) return -1;
-    if (!isBbcA && isBbcB) return 1;
-
-    // 5. The Hindu, Indian Express, NDTV
-    const isPremiumNewsA = /thehindu\.com|indianexpress\.com|ndtv\.com/i.test(a.url);
-    const isPremiumNewsB = /thehindu\.com|indianexpress\.com|ndtv\.com/i.test(b.url);
-    if (isPremiumNewsA && !isPremiumNewsB) return -1;
-    if (!isPremiumNewsA && isPremiumNewsB) return 1;
-
-    // 6. Tier order
+    // 3. Trusted news tier
     const tierA = a.tier || getSourceTier(a.url);
     const tierB = b.tier || getSourceTier(b.url);
     if (tierA !== tierB) return tierA - tierB;
 
-    // 7. Relevance Score
     return (b.score || 0) - (a.score || 0);
   });
 
-  logger.info(`Total unique evidence: ${uniqueEvidence.length} sources`);
-
-  if (uniqueEvidence.length === 0) {
-    logger.warn('No evidence found in trusted sources.');
-    return {
-      success: false,
-      errorType: 'no_evidence',
-      message: responseLanguage === 'hi'
-        ? 'इस दावे के लिए गूगल फैक्ट चेक या विश्वसनीय स्रोतों से कोई सत्यापन साक्ष्य प्राप्त नहीं किया जा सका।'
-        : 'No verification evidence could be retrieved from Google Fact Check or trusted sources for this claim.',
-      evidenceCollected: false,
-      statusCode: 200
-    };
-  }
-
-  // Cap at 8 sources (Part 3)
-  const evidenceForPrompt = uniqueEvidence.slice(0, 8);
+  // Cap at 8 relevant sources
+  const evidenceForPrompt = relevantEvidence.slice(0, 8);
 
   // ── Step 7: Gemini reasoning ───────────────────────────────────────────────
-  logger.info('Step 7: Running Gemini reasoning engine');
+  logger.info('Step 7: Running Gemini reasoning engine on relevant evidence');
 
-  // For non-news URL types, use a specialized prompt; everything else uses the
-  // existing text verification prompt (text inputs always use the existing prompt).
   const isSpecialUrlType = pageClassification && pageClassification.pageType !== 'news';
   const verificationPrompt = isSpecialUrlType
     ? buildUrlTypePrompt(
@@ -233,38 +250,34 @@ async function verifyText(content, inputType, selectedLanguage) {
     logger.info('Gemini analysis complete', { verdict: geminiResult.verdict });
   } catch (geminiError) {
     logger.error('Gemini text analysis failed:', geminiError);
-    return geminiService.formatGeminiError(geminiError, uniqueEvidence.length > 0, responseLanguage);
+    return geminiService.formatGeminiError(geminiError, evidenceForPrompt.length > 0, responseLanguage);
   }
 
   // ── Step 8: Build structured result ──────────────────────────────────────
   logger.info('Step 8: Building structured result');
-  // Gemini succeeded — no fallback was used
   const usedFallback = false;
   const providerWarning = undefined;
   const claims = buildClaims(geminiResult, evidenceForPrompt, responseLanguage);
   let trustScore = calculateTrustScore(geminiResult, claims, factCheckResults.length > 0);
-  const sourceCredibility = calculateSourceCredibility(uniqueEvidence);
+  const sourceCredibility = calculateSourceCredibility(evidenceForPrompt);
   const aiLikelihood = geminiResult.aiLikelihood || estimateAiLikelihood(claimText);
 
-  // ── Evidence distribution counts ──────────────────────────────────────────
-  // Count supporting vs contradicting vs neutral sources across all claims
+  // Evidence distribution counts
   const supportingUrls = new Set();
   const contradictingUrls = new Set();
   claims.forEach((claim) => {
     (claim.sources || []).forEach((src) => {
       const key = src.url || src.title || '';
       if (!key) return;
-      // A source is supporting if it appears in the claim's supporting list context
-      // We infer from the verdict: Supported claims → supporting sources, Contradicted → contradicting
       if (claim.verdict === 'Supported') supportingUrls.add(key);
       else if (claim.verdict === 'Contradicted') contradictingUrls.add(key);
     });
   });
   const supportingCount = supportingUrls.size || 0;
   const contradictingCount = contradictingUrls.size || 0;
-  const initialNeutralCount = Math.max(0, uniqueEvidence.length - supportingCount - contradictingCount);
+  const initialNeutralCount = Math.max(0, evidenceForPrompt.length - supportingCount - contradictingCount);
 
-  // ── Trust Score Breakdown (for UI explainer card) ─────────────────────────
+  // Trust Score Breakdown
   const trustScoreBreakdown = responseLanguage === 'hi' ? [
     { label: 'स्रोतों की विश्वसनीयता', value: sourceCredibility },
     { label: 'समर्थन करने वाले स्रोत', value: Math.min(100, supportingCount * 15) },
@@ -277,18 +290,10 @@ async function verifyText(content, inputType, selectedLanguage) {
     { label: 'AI reasoning confidence', value: geminiResult.confidence || 50 },
   ];
 
-  // ── URL page-type overrides (URL inputs only) ──────────────────────────────
-  // official / reference pages are authoritative sources — floor their trust score
-  // at 75 so the reliability ring looks sensible.
-  // The frontend display verdict is driven by pageVerdict, not trustScore, for these types.
   if (pageClassification && ['official', 'reference'].includes(pageClassification.pageType)) {
     trustScore = Math.max(trustScore, 75);
   }
 
-  // Determine the display-level verdict override sent to the frontend.
-  //   'official' / 'reference'  → 'Informational'  (teal, no True/False/Misleading)
-  //   'opinion'                 → 'Opinion'         (purple, factual claims still shown)
-  //   'social_media' / 'news'   → undefined         (standard trustScore-derived verdict)
   let pageVerdict;
   if (pageClassification) {
     if (['official', 'reference'].includes(pageClassification.pageType)) {
@@ -298,7 +303,6 @@ async function verifyText(content, inputType, selectedLanguage) {
     }
   }
 
-  // ── Source Consensus & Stance Mapping ─────────────────────────────────────
   const getDomain = (url) => {
     try { return new URL(url || '').hostname.replace(/^www\./, ''); }
     catch { return ''; }
@@ -307,7 +311,6 @@ async function verifyText(content, inputType, selectedLanguage) {
   const sourceConsensus = evidenceForPrompt.map((article, index) => {
     const evaluation = (geminiResult.sourceConsensus || []).find(sc => sc.index === index) || {};
     
-    // Fallback stance inference if not present
     let stance = evaluation.stance || 'Mentions';
     if (!evaluation.stance) {
       const isSupporting = claims.some(c => c.verdict === 'Supported' && c.sources?.some(s => s.url === article.url));
@@ -362,7 +365,6 @@ async function verifyText(content, inputType, selectedLanguage) {
     unknownCount
   };
 
-  // Structured reasoning object
   let reasoningObj = {
     evidenceSummary: geminiResult.evidenceSummary || '',
     crossSourceAgreement: geminiResult.crossSourceAgreement || '',
@@ -379,7 +381,6 @@ async function verifyText(content, inputType, selectedLanguage) {
     reasoningObj.aiReasoning = geminiResult.summary || '';
   }
 
-  // ── Fallbacks & Timeline (Section 10 & 12) ───────────────────────────────
   let verifiedFacts = geminiResult.verifiedFacts || [];
   if (!Array.isArray(verifiedFacts) || verifiedFacts.length === 0) {
     verifiedFacts = [
@@ -392,7 +393,7 @@ async function verifyText(content, inputType, selectedLanguage) {
   let keyFindings = geminiResult.keyFindings || [];
   if (!Array.isArray(keyFindings) || keyFindings.length === 0) {
     keyFindings = [
-      responseLanguage === 'hi' ? `कुल ${evidenceForPrompt.length} स्वतंत्र स्रोतों का विश्लेषण किया गया।` : `Analyzed reporting from ${evidenceForPrompt.length} unique sources.`,
+      responseLanguage === 'hi' ? `कुल ${evidenceForPrompt.length} प्रासंगिक स्रोतों का विश्लेषण किया गया।` : `Analyzed reporting from ${evidenceForPrompt.length} relevant sources.`,
       responseLanguage === 'hi' ? `दावे का समर्थन करने वाले ${supportCount} स्रोत पाए गए।` : `Identified ${supportCount} supporting and ${contradictCount} contradicting sources.`,
       responseLanguage === 'hi' ? 'स्रोतों की विश्वसनीयता के आधार पर आम सहमति स्कोर की गणना की गई।' : 'Consensus score was calculated based on publisher credibility tiers.'
     ];
@@ -415,7 +416,6 @@ async function verifyText(content, inputType, selectedLanguage) {
     };
   }
 
-  // Confidence Breakdown (Part 6: Local Calculations)
   const averageCredibility = sourceConsensus.reduce((acc, s) => acc + s.credibilityScore, 0) / (sourceConsensus.length || 1);
   const evidenceQualityStars = Math.max(1, Math.min(5, Math.round(averageCredibility / 20)));
 
@@ -450,7 +450,7 @@ async function verifyText(content, inputType, selectedLanguage) {
   const confidenceBreakdownObj = {
     evidenceQuality: {
       stars: evidenceQualityStars,
-      explanation: getExplanation('evidenceQuality', 'Assessment based on standard sources.', 'मानक स्रोतों के आधार पर मूल्यांकन।')
+      explanation: getExplanation('evidenceQuality', 'Assessment based on relevant sources.', 'प्रासंगिक स्रोतों के आधार पर मूल्यांकन।')
     },
     independentSources: {
       stars: independentSourcesStars,
@@ -502,7 +502,6 @@ async function verifyText(content, inputType, selectedLanguage) {
     providerStatus: usedFallback ? 'degraded' : 'ok',
     providerWarning,
     processingTime: getProcessingTime(startTime),
-    // ── New enriched fields ────────────────────────────────────────────────
     verifiedFacts,
     keyFindings,
     finalAssessment,
@@ -512,23 +511,21 @@ async function verifyText(content, inputType, selectedLanguage) {
     claimsTotal: geminiResult.claimsTotal ?? claims.length,
     unverifiedNote: geminiResult.unverifiedNote || null,
     trustScoreBreakdown,
-    // ── Internal / debug fields ────────────────────────────────────────────
+    sources: claims[0]?.sources || evidenceForPrompt.slice(0, 6).map(s => toSourceShape(s, responseLanguage)),
     _verdict: geminiResult.verdict,
     _confidence: geminiResult.confidence,
     _summary: geminiResult.summary,
     _originalText: claimText.slice(0, 10000),
     _queriesUsed: searchQueries,
-    // ── URL classification metadata — only present for URL inputs ────────────
     ...(pageClassification ? {
       pageType: pageClassification.pageType,
       pageTypeLabel: pageClassification.pageTypeLabel,
       pageTypeDescription: pageClassification.pageTypeDescription,
     } : {}),
-    // pageVerdict overrides the trust-score-derived display verdict on the frontend
     ...(pageVerdict ? { pageVerdict } : {}),
   };
 
-  logger.info('Verification pipeline complete', {
+  logger.info('Verification pipeline complete with relevant sources', {
     trustScore,
     claimsCount: claims.length,
     claimsVerified: result.claimsVerified,
@@ -544,46 +541,6 @@ async function verifyText(content, inputType, selectedLanguage) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function buildEvidenceOnlyResult(claimText, evidenceSources, responseLanguage, providerWarning) {
-  const trustedCount = evidenceSources.filter((s) => s.trusted).length;
-  const factCheckCount = evidenceSources.filter((s) => s.isFactCheck).length;
-  const hasEvidence = evidenceSources.length > 0;
-  const confidence = hasEvidence
-    ? Math.min(60, 20 + trustedCount * 8 + factCheckCount * 12 + evidenceSources.length * 2)
-    : 0;
-
-  const summary =
-    responseLanguage === 'hi'
-      ? 'AI विश्लेषण उपलब्ध नहीं था। यह परिणाम केवल पुनर्प्राप्त स्रोतों के आधार पर बनाया गया है।'
-      : `${providerWarning || 'AI analysis unavailable.'} Showing evidence-only result.`;
-
-  const reasoning = hasEvidence
-    ? (responseLanguage === 'hi'
-        ? `${summary} कुल ${evidenceSources.length} स्रोत मिले (${trustedCount} विश्वसनीय प्रकाशकों से${factCheckCount > 0 ? `, ${factCheckCount} आधिकारिक तथ्य-जाँच` : ''})। मैन्युअल समीक्षा की सिफारिश की जाती है।`
-        : `${summary} Found ${evidenceSources.length} sources (${trustedCount} from trusted publishers${factCheckCount > 0 ? `, ${factCheckCount} official fact-check(s)` : ''}). Manual review recommended.`)
-    : (responseLanguage === 'hi'
-        ? `${summary} कोई साक्ष्य स्रोत प्राप्त नहीं हुआ।`
-        : `${summary} No evidence sources were retrieved.`);
-
-  return {
-    verdict: hasEvidence && trustedCount > 0 ? 'PARTIALLY_TRUE' : 'UNVERIFIED',
-    confidence,
-    summary,
-    reasoning,
-    aiLikelihood: estimateAiLikelihood(claimText),
-    claims: [
-      {
-        text: claimText.slice(0, 500),
-        verdict: hasEvidence && trustedCount > 0 ? 'Misleading' : 'Unverified',
-        confidence,
-        reasoning,
-        supportingSources: evidenceSources.map((_, i) => i).slice(0, 5),
-        contradictingSources: [],
-      },
-    ],
-  };
-}
 
 function buildClaims(geminiResult, evidenceSources, responseLanguage) {
   const rawClaims = geminiResult.claims || [];
@@ -655,7 +612,6 @@ function mapVerdict(verdict) {
     PARTIALLYTRUE: 'Misleading',
     PARTIALLY_TRUE: 'Misleading',
     UNVERIFIED: 'Unverified',
-    // URL page-type verdicts
     INFORMATIONAL: 'Informational',
     OPINION: 'Opinion',
   };

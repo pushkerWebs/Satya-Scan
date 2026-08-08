@@ -280,30 +280,6 @@ async function analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLangua
     const verdict = normalizeClaimVerdict(rawVerdict, trustScore);
     const confidence = Math.max(0, Math.min(100, Math.round(trustScore)));
 
-    let reason = '';
-    if (primaryClaim?.reasoning) {
-      reason = primaryClaim.reasoning;
-    } else if (factCheckResult.aiReasoning) {
-      reason = Array.isArray(factCheckResult.aiReasoning)
-        ? factCheckResult.aiReasoning[0]
-        : String(factCheckResult.aiReasoning);
-    } else if (factCheckResult.reasoning) {
-      reason = String(factCheckResult.reasoning);
-    } else if (verdict === 'Unverified') {
-      reason = 'No reliable sources confirm this claim.';
-    } else if (verdict === 'True') {
-      reason = 'Multiple trusted sources independently support this claim.';
-    } else if (verdict === 'False') {
-      reason = 'Reliable evidence from independent sources contradicts this claim.';
-    } else {
-      reason = 'The claim contains misleading context or unverified elements.';
-    }
-
-    if (reason.length > 300) {
-      const firstSentence = reason.split(/(?<=[.!?])\s+/)[0];
-      reason = firstSentence && firstSentence.length > 10 ? firstSentence : reason.slice(0, 250) + '...';
-    }
-
     const allSources = [];
     if (primaryClaim?.sources?.length) {
       allSources.push(...primaryClaim.sources);
@@ -320,6 +296,34 @@ async function analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLangua
       seenUrls.add(url);
       return true;
     }).slice(0, 6);
+
+    let reason = '';
+    if (primaryClaim?.reasoning) {
+      reason = primaryClaim.reasoning;
+    } else if (factCheckResult.aiReasoning) {
+      reason = Array.isArray(factCheckResult.aiReasoning)
+        ? factCheckResult.aiReasoning[0]
+        : String(factCheckResult.aiReasoning);
+    } else if (factCheckResult.reasoning) {
+      reason = String(factCheckResult.reasoning);
+    } else if (sources.length === 0 || verdict === 'Unverified') {
+      reason = 'No reliable sources found directly addressing the claim.';
+    } else if (verdict === 'True') {
+      reason = 'Multiple trusted sources independently support this claim.';
+    } else if (verdict === 'False') {
+      reason = 'Reliable evidence from independent sources contradicts this claim.';
+    } else {
+      reason = 'The claim contains misleading context or unverified elements.';
+    }
+
+    if (sources.length === 0) {
+      reason = 'No reliable sources found directly addressing the claim.';
+    }
+
+    if (reason.length > 300) {
+      const firstSentence = reason.split(/(?<=[.!?])\s+/)[0];
+      reason = firstSentence && firstSentence.length > 10 ? firstSentence : reason.slice(0, 250) + '...';
+    }
 
     const ocrClaimVerification = {
       hasMeaningfulClaim: true,
