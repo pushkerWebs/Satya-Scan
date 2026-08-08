@@ -39,30 +39,29 @@ function normalizeClaimVerdict(rawVerdict, trustScore) {
 
 /**
  * Meaningful Factual Claim Filter
- * Returns true ONLY if text represents an actual verifiable factual claim.
- * Filters out greetings, social media CTAs, single words, emojis, watermarks, and brand labels.
+ * Returns true for all legitimate headlines, assertions, statements, and quotes.
+ * Returns false only for empty text, single isolated symbols/emojis, or blacklisted greetings/watermarks.
  */
-function isMeaningfulFactualClaim(text, detectedClaim, isFactualClaimFromPrompt) {
+function isMeaningfulFactualClaim(rawText, detectedClaim) {
+  const text = (detectedClaim && detectedClaim.length >= 3) ? detectedClaim : (rawText || '');
   if (!text || typeof text !== 'string') return false;
   const clean = text.trim();
-  if (clean.length < 5) return false;
+  if (clean.length < 3) return false;
 
-  const nonClaimRegex = /^(hello|hi|hey|good\s+morning|good\s+night|subscribe|follow\s+me|follow\s+for\s+more|like\s+and\s+share|link\s+in\s+bio|lol|lmao|omg|wow|cool|nice|shot\s+on\s+[a-z0-9]+|getty\s+images|shutterstock|watermark|copyright|all\s+rights\s+reserved|menu|home|back|settings|sign\s+up|login)\b/i;
-  if (nonClaimRegex.test(clean) && clean.split(/\s+/).length <= 4) {
+  // Blacklist only trivial greetings, pure watermarks, social media buttons
+  const blacklistRegex = /^(hello|hi|hey|good\s+morning|good\s+night|subscribe|follow\s+me|follow\s+for\s+more|like\s+and\s+share|like\s+&\s+share|link\s+in\s+bio|lol|lmao|omg|wow|cool|nice|shot\s+on\s+[a-z0-9]+|getty\s+images|shutterstock|watermark|copyright|all\s+rights\s+reserved|menu|home|back|settings|sign\s+up|login)\b/i;
+  
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (blacklistRegex.test(clean) && words.length <= 3) {
     return false;
   }
 
   // Symbol or emoji only
   const withoutSymbols = clean.replace(/[\p{Emoji}\p{Punctuation}\s]/gu, '');
-  if (withoutSymbols.length < 4) return false;
+  if (withoutSymbols.length < 2) return false;
 
-  // Single word
-  const words = clean.split(/\s+/).filter(Boolean);
-  if (words.length <= 1) return false;
-
-  if (isFactualClaimFromPrompt === false && !detectedClaim) {
-    return false;
-  }
+  // Single word without assertion
+  if (words.length <= 1 && words[0].length < 8) return false;
 
   return true;
 }
@@ -225,35 +224,32 @@ async function analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLangua
 
   const ocrPrompt = buildOcrExtractionPrompt(language);
 
-  let ocrRaw;
+  let ocrRaw = null;
   try {
     ocrRaw = await geminiService.analyzeImage(imageBuffer, mimeType, ocrPrompt, selectedLanguage);
   } catch (error) {
-    logger.warn('[Image Dual Architecture] Module 2 OCR extraction unavailable:', error.message);
-    return {
-      hasMeaningfulClaim: false,
-      hasText: false,
-      extractedText: null,
-      verdict: null,
-      confidence: null,
-      reason: null,
-      sources: [],
-      error: error.message,
-    };
+    logger.warn('[Image Dual Architecture] Module 2 OCR extraction primary attempt failed:', error.message);
+    // Short retry with small backoff
+    await new Promise(r => setTimeout(r, 600));
+    try {
+      ocrRaw = await geminiService.analyzeImage(imageBuffer, mimeType, ocrPrompt, selectedLanguage);
+    } catch (retryErr) {
+      logger.warn('[Image Dual Architecture] Module 2 OCR extraction retry unavailable:', retryErr.message);
+    }
   }
 
-  const extractedText = (ocrRaw?.extractedText || '').trim();
+  const rawText = (ocrRaw?.extractedText || '').trim();
   const detectedClaim = (ocrRaw?.detectedClaim || '').trim();
-  const isFactual = ocrRaw?.isFactualClaim !== false;
+  const claim = (detectedClaim && detectedClaim.length >= 4) ? detectedClaim : rawText;
+  const hasMeaningfulClaim = isMeaningfulFactualClaim(rawText, detectedClaim);
 
-  const hasClaim = isMeaningfulFactualClaim(extractedText, detectedClaim, isFactual);
+  // User requested debug logs
+  console.log("OCR RAW:", rawText);
+  console.log("CLEANED CLAIM:", claim);
+  console.log("HAS CLAIM:", hasMeaningfulClaim);
 
-  if (!hasClaim) {
-    logger.info('[Image Dual Architecture] Module 2: No meaningful factual claim found (or text is non-claim/decorative)', {
-      extractedText,
-      hasClaim: false,
-    });
-    return {
+  if (!hasMeaningfulClaim || !claim) {
+    const emptyResult = {
       hasMeaningfulClaim: false,
       hasText: false,
       extractedText: null,
@@ -263,16 +259,16 @@ async function analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLangua
       sources: [],
       error: null,
     };
+    console.log("OCR RESULT:", emptyResult);
+    return emptyResult;
   }
 
-  const claimToVerify = (detectedClaim && detectedClaim.length > 5) ? detectedClaim : extractedText;
-
   logger.info('[Image Dual Architecture] Module 2: Meaningful claim detected, forwarding to existing SatyaScan fact-check engine', {
-    claimToVerify,
+    claimToVerify: claim,
   });
 
   try {
-    const factCheckResult = await verifyText(claimToVerify, 'text', selectedLanguage);
+    const factCheckResult = await verifyText(claim, 'text', selectedLanguage);
 
     const primaryClaim = factCheckResult.claims && factCheckResult.claims.length > 0
       ? factCheckResult.claims[0]
@@ -325,40 +321,47 @@ async function analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLangua
       return true;
     }).slice(0, 6);
 
-    logger.info('[Image Dual Architecture] Module 2 fact-check complete', {
-      verdict,
-      confidence,
-      sourceCount: sources.length,
-    });
-
-    return {
+    const ocrClaimVerification = {
       hasMeaningfulClaim: true,
       hasText: true,
-      extractedText: claimToVerify,
+      extractedText: claim,
       verdict,
       confidence,
       reason,
       sources,
       error: null,
     };
+
+    console.log("OCR RESULT:", ocrClaimVerification);
+
+    logger.info('[Image Dual Architecture] Module 2 fact-check complete', {
+      verdict,
+      confidence,
+      sourceCount: sources.length,
+    });
+
+    return ocrClaimVerification;
   } catch (error) {
     logger.error('[Image Dual Architecture] Module 2 fact-check failed:', error.message);
-    return {
+    const fallbackClaimResult = {
       hasMeaningfulClaim: true,
       hasText: true,
-      extractedText: claimToVerify,
+      extractedText: claim,
       verdict: 'Unverified',
       confidence: 50,
       reason: 'Fact-checking service is evaluating external corroboration sources for this claim.',
       sources: [],
       error: error.message,
     };
+    console.log("OCR RESULT:", fallbackClaimResult);
+    return fallbackClaimResult;
   }
 }
 
 /**
  * Main Image Verification Pipeline Orchestrator
- * Runs Module 1 (Image Authenticity) and Module 2 (Text Claim Verification) concurrently.
+ * Runs Module 2 (OCR & Claim) and Module 1 (Image Authenticity) sequentially
+ * to prevent rate-limit throttling and guarantee high-fidelity dual outputs.
  */
 async function verifyImage(imageBuffer, mimeType, originalFilename, selectedLanguage) {
   const startTime = Date.now();
@@ -386,31 +389,36 @@ async function verifyImage(imageBuffer, mimeType, originalFilename, selectedLang
     logger.warn('EXIF extraction error:', err.message);
   }
 
-  const [visualResult, ocrResult] = await Promise.allSettled([
-    analyzeVisualAuthenticity(imageBuffer, mimeType, exifData, selectedLanguage),
-    analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLanguage),
-  ]);
+  // 1. Run Module 2: OCR Extraction and Claim Verification
+  let ocrClaimVerification;
+  try {
+    ocrClaimVerification = await analyzeOcrClaimVerification(imageBuffer, mimeType, selectedLanguage);
+  } catch (err) {
+    logger.warn('Module 2 caught outer error:', err.message);
+    ocrClaimVerification = {
+      hasMeaningfulClaim: false,
+      hasText: false,
+      extractedText: null,
+      verdict: null,
+      confidence: null,
+      reason: null,
+      sources: [],
+      error: err.message,
+    };
+  }
 
-  let visualAuthenticity = visualResult.status === 'fulfilled'
-    ? visualResult.value
-    : performLocalForensics(imageBuffer, exifData);
+  // 2. Run Module 1: Visual Pixel Forensics
+  let visualAuthenticity;
+  try {
+    visualAuthenticity = await analyzeVisualAuthenticity(imageBuffer, mimeType, exifData, selectedLanguage);
+  } catch (err) {
+    logger.warn('Module 1 caught outer error, engaging local forensics:', err.message);
+    visualAuthenticity = performLocalForensics(imageBuffer, exifData);
+  }
 
   if (!visualAuthenticity || !visualAuthenticity.status || visualAuthenticity.confidence <= 0) {
     visualAuthenticity = performLocalForensics(imageBuffer, exifData);
   }
-
-  const ocrClaimVerification = ocrResult.status === 'fulfilled'
-    ? ocrResult.value
-    : {
-        hasMeaningfulClaim: false,
-        hasText: false,
-        extractedText: null,
-        verdict: null,
-        confidence: null,
-        reason: null,
-        sources: [],
-        error: ocrResult.reason?.message || 'OCR analysis failed',
-      };
 
   const processingTime = getProcessingTime(startTime);
 

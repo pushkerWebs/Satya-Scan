@@ -132,6 +132,8 @@ async function analyze(req, res, next) {
       if (key.startsWith('_')) delete response[key];
     });
 
+    console.log("ENTIRE API RESPONSE BEFORE SENDING:", JSON.stringify(response, null, 2));
+
     res.json(response);
   } catch (error) {
     logger.error('Analysis failed:', {

@@ -1,44 +1,34 @@
 /**
  * OCR Extraction Prompt - Module 2 (Text Claim Verification)
  *
- * Extracts text and determines whether the extracted text makes a verifiable factual claim.
+ * Extracts text and determines the core assertion for fact-checking.
  */
 function buildOcrExtractionPrompt(language) {
   const styleLanguage = language === 'hi' ? 'Hindi and English' : 'English and Hindi';
 
-  return `You are an expert Optical Character Recognition (OCR) and claim extraction system.
+  return `You are an expert Optical Character Recognition (OCR) system.
 
 SUPPORTED LANGUAGES: ${styleLanguage}, and any mix of both.
 
-TASK 1: TEXT EXTRACTION
-Extract all readable text visible in the image (preserving original wording and spelling).
+TASK:
+1. Extract ALL visible text from the image verbatim (headlines, meme captions, video overlays, news banners, social media posts, subtitles).
+2. If ANY visible text is present (e.g. "ALIA ATTENDED INDIA'S GOT LATENT", "India won the match", "Breaking News: ..."), you MUST extract it into "extractedText" and set "hasText": true.
+3. Identify the primary factual assertion or headline claim in "detectedClaim".
 
-TASK 2: MEANINGFUL FACTUAL CLAIM DETECTION
-Determine if the extracted text makes a meaningful, verifiable factual claim (e.g. news events, political statements, celebrity assertions, sports events, scientific claims, statistics, or public controversies).
+EXAMPLES OF VALID EXTRACTIONS:
+- Image contains: "ALIA ATTENDED INDIA'S GOT LATENT" -> extractedText: "ALIA ATTENDED INDIA'S GOT LATENT", hasText: true, isFactualClaim: true
+- Image contains: "PM announces new economic package" -> extractedText: "PM announces new economic package", hasText: true, isFactualClaim: true
+- Image contains only: "Hello" / "Subscribe" / "❤️" -> extractedText: "Hello", hasText: true, isFactualClaim: false
+- Image contains no text at all -> extractedText: null, hasText: false, isFactualClaim: false
 
-EXAMPLES OF MEANINGFUL FACTUAL CLAIMS (isFactualClaim: true):
-- "Alia went to Latent"
-- "India won the World Cup"
-- "NASA confirms alien life"
-- "This politician was arrested"
-- "Government announces new subsidy policy"
-
-EXAMPLES OF NON-CLAIMS (isFactualClaim: false):
-- Greetings / Single words: "Hello", "Hi", "Hey", "Good morning"
-- Social media calls-to-action: "Subscribe", "Follow me", "Follow for more", "Link in bio", "Like & Share"
-- Reaction words / emojis: "LOL", "LMAO", "OMG", "Cool"
-- Brand logos / decorative words: "Nike", "Apple", "Menu", "Home", "Search", "Profile"
-- Watermarks / camera stamps: "Shot on iPhone", "Getty Images", "Shutterstock", "12:30 PM"
-- Random decorative slogans: "Live Laugh Love", "Stay Positive"
-
-If the image contains no readable text, OR the text does NOT contain a verifiable factual claim, set isFactualClaim to false and detectedClaim to null.
+You MUST respond with ONLY a valid JSON object. No markdown fences, no explanatory text outside JSON.
 
 RESPONSE FORMAT (JSON ONLY):
 {
-  "hasText": true | false,
+  "hasText": true,
   "extractedText": "<all extracted text as a single string, or null if none>",
-  "isFactualClaim": true | false,
   "detectedClaim": "<the specific factual claim sentence to verify, or null if not a claim>",
+  "isFactualClaim": true,
   "primaryLanguage": "en | hi | mixed | unknown"
 }`;
 }
